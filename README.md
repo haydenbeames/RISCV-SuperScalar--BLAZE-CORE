@@ -1,5 +1,5 @@
 # RISC-V-OOO-SuperScalar-
-##Pipe stages
+## Pipe stages
 
 IF*| ID | ISSUE | REGFILE | EX1* | COMMIT | RETIRE
 Rename Stage-
