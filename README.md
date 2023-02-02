@@ -22,4 +22,5 @@ Additionally, when a branch is issued, a copy of FRAT data will be assigned to a
 the RRAT is updated whenever a committed uop is retired from the Re-Order Buffer (ROB). 
 
 In the case of the 4th mispredicted branch, the following occurs:
+- Branch Predictor is updated
 - all uops after misspeculated branch will be marked as stale and be removed from pipeline
