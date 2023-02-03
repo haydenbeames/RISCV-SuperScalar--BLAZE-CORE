@@ -1,12 +1,29 @@
-# RISC-V-OOO-SuperScalar-
+# RISC-V-OOO-SuperScalar
 ## Pipe stages
 
-IF*| ID | ISSUE | REGFILE | EX1* | COMMIT | RETIRE 
+IF*| ID | ISSUE | PRF | EX1* | COMMIT | RETIRE 
 
 ## ID/RENAME STAGE
 
   Since source operands RS1 and RS2 are in fixed locations, the RAT can be read before the instruction is decoded!
+  At the moment, support for the following instructions:
+  -Arithmetic Instructions: add, sub, slt
+  -Arithmetic Immediate: addi, slti
+  -Logical: and, or, xor
+  -Logical Immediate: andi, ori, xori
+  -Immediate Instruction: LUI
+  -Branch Instructions: 	beq BNE, BLT, BGE
+  -Shift instructions: SLLI, SRLI, SRAI, SLL, SRL, SRA
+  -Jump Instructions: JAL, JALR,
+  -Memory: lw, sw
+  
+  #Instructions to be added in future:
+  -MUL
 
+##ISSUE STAGE
+
+-rd will first update the FRAT
+-uop will be assigned to an open Reservation Station (RSV)
 
 
 # MISSPECULATING BRANCHES
