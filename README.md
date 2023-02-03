@@ -7,8 +7,8 @@ IF*| ID | ISSUE | PRF | EX1* | COMMIT | RETIRE
 
   Since source operands RS1 and RS2 are in fixed locations, the RAT can be read before the instruction is decoded!
   At the moment, support for the following instructions:
-  -Arithmetic Instructions: add, sub, slt
-  -Arithmetic Immediate: addi, slti
+-Arithmetic Instructions: add, sub, slt
+-Arithmetic Immediate: addi, slti
   -Logical: and, or, xor
   -Logical Immediate: andi, ori, xori
   -Immediate Instruction: LUI
