@@ -18,7 +18,7 @@ IF*| ID | ISSUE | PRF | EX1* | COMMIT | RETIRE
 -   Jump Instructions: JAL, JALR,
 -   Memory: lw, sw
   
-## Instructions to be added in future:
+### Instructions to be added in future:
 -   MUL, MULH, MULHSU, MULHU, 
 -   DIV, DIVU
 
