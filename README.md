@@ -9,8 +9,8 @@ IF*| ID | ISSUE | PRF | EX1* | COMMIT | RETIRE
   
   At the moment, support for the following instructions:
 -   Arithmetic Instructions: add, sub, slt
--   Arithmetic Immediate: addi, slti
--   Logical: and, or, xor
+-   Arithmetic Immediate:    addi, slti
+-   Logical:                 and, or, xor
 -   Logical Immediate: andi, ori, xori
 -   Immediate Instruction: LUI
 -   Branch Instructions: 	beq BNE, BLT, BGE
