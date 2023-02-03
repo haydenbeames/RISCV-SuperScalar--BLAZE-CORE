@@ -18,13 +18,18 @@ IF*| ID | ISSUE | PRF | EX1* | COMMIT | RETIRE
 -   Jump Instructions: JAL, JALR,
 -   Memory: lw, sw
   
-  #Instructions to be added in future:
-  -MUL
+## Instructions to be added in future:
+-   MUL, MULH, MULHSU, MULHU, 
+-   DIV, DIVU
 
-##ISSUE STAGE
+## ISSUE STAGE
 
 -rd will first update the FRAT
 -uop will be assigned to an open Reservation Station (RSV)
+
+## PRF STAGE
+
+
 
 
 # MISSPECULATING BRANCHES
