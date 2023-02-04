@@ -1,9 +1,9 @@
 # RISC-V-OOO-SuperScalar
 ## Pipe stages
 
-IF*| ID | ISSUE | PRF | EX1* | COMMIT | RETIRE 
+IF*| ID | IS | PRF | EX1* | COMMIT | RETIRE 
 
-## ID/RENAME STAGE
+## ID STAGE (also doing renaming)
 
   Since source operands RS1 and RS2 are in fixed locations, the RAT can be read before the instruction is decoded!
   
@@ -22,12 +22,12 @@ IF*| ID | ISSUE | PRF | EX1* | COMMIT | RETIRE
 -   MUL, MULH, MULHSU, MULHU, 
 -   DIV, DIVU
 
-## ISSUE STAGE
+## IS STAGE (ISSUE STAGE)
 
 -rd will first update the FRAT
 -uop will be assigned to an open Reservation Station (RSV)
 
-## PRF STAGE
+## PRF (Physical Register File) STAGE 
 
 
 
