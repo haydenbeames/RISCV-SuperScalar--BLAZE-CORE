@@ -1,9 +1,9 @@
 # RISC-V-OOO-SuperScalar
 ## Pipe stages
 
-IF*| ID | IS | RSV | EX1* | CMT | RET 
+IF*| ID | IS | RS | EX1* | CMT | RET 
 
-Instruction Fetch | Instruction Decode/Rename | Issue | RSV | Execution | Commit | Retire
+Instruction Fetch | Instruction Decode/Rename | Issue | Reservation Station | Execution | Commit | Retire
 
 ## ID STAGE (also doing renaming)
 
@@ -29,7 +29,7 @@ Instruction Fetch | Instruction Decode/Rename | Issue | RSV | Execution | Commit
 -rd will first update the FRAT
 -uop will be assigned to an open Reservation Station (RSV)
 
-## PRF (Physical Register File) STAGE 
+## RS (Reservation Station) STAGE 
 
 
 
