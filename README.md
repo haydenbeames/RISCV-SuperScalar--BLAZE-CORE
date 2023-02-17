@@ -1,9 +1,11 @@
 # RISC-V-OOO-SuperScalar
 ## Pipe stages
 
-IF*| ID | IS | RS | EX1* | CMT | RET 
+IF*| ID | IS | RS | EX* | CMT | RET 
 
 Instruction Fetch | Instruction Decode/Rename | Issue | Reservation Station | Execution | Commit | Retire
+
+*: stage may take multiple cycles
 
 ## ID STAGE (also doing renaming)
 
