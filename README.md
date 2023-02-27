@@ -1,4 +1,4 @@
-# RISC-V-OOO-SuperScalar
+# RISC-V SuperScalar
 ## Pipe stages
 
 IF*| ID | IS | RS | EX* | CMT | RET 
