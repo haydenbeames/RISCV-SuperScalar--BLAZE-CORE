@@ -44,11 +44,11 @@ CPU uses 2 Register Alias Tables (RAT): 1 Fetch RAT (FRAT) and 1 Retire RAT (RRA
 
 Additionally, when a branch is issued, a copy of FRAT data will be assigned to a branch for a maximum of 3 copies. If any of these 3 branches are mispredicted, FRAT can instantly update to these copies. However, if a 4th branch is mispredicted, use of the RRAT will become necessary
 
-## FRAT
+# FRAT
 
 priority renaming to instruction srcs rs1 and rs2 is given to retiring uops. This is to prevent false data dependencies on retired ROB entries. In order for this to work, the retirement data must be forwarded to the source operands
 
-### RRAT
+# RRAT
 
 the RRAT is updated whenever a committed uop is retired from the Re-Order Buffer (ROB). 
 
