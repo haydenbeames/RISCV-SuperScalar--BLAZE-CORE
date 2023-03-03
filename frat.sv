@@ -43,7 +43,7 @@ module f_rat(
     
     //outputs of f-rat
     output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_is,
-    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                      src_data_type_rat_is, // 1: ROB, 0: PRF
+    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                      src_data_type_rat_is, // 1: PRF, 0: ROB
     output logic [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                             robid_is
     );
     
@@ -60,7 +60,7 @@ module f_rat(
     initial begin
         for (int i = 0; i < RAT_SIZE; i++) begin
             rat[i].table_data = i;
-            rat[i].dataType   = 0;
+            rat[i].rf   = 0; 
         end
     end
     
@@ -143,7 +143,7 @@ module f_rat(
     typedef struct packed { 
         logic [RAT_SIZE-1:0][RAT_RENAME_DATA_WIDTH-1:0] rat_copy_data;
         logic [ROB_SIZE_CLOG-1:0]   robid;
-        logic                              valid;
+        logic                       valid;
     } bratcr_t;
     
     bratcr_t [BRATCR_NUM_ETY-1:0] bratcr;
