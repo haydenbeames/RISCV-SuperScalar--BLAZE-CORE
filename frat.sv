@@ -42,8 +42,8 @@ module f_rat(
     input logic  [ROB_MAX_RETIRE-1:0]           branch_ret,
     
     //outputs of f-rat
-    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_is,
-    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                      src_data_type_rat_is, // 1: PRF, 0: ROB
+    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ar,
+    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                      src_data_type_rat_ar, // 1: PRF, 0: ROB
     output logic [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                             robid_is
     );
     
@@ -76,14 +76,18 @@ module f_rat(
     always_ff@(posedge clk) begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             if (instr_val_id[i]) begin
-                src_renamed_is[i][RS_1] <= rat[rs1_id[i]].table_data;
-                src_renamed_is[i][RS_2] <= rat[rs2_id[i]].table_data;
+                src_renamed_ar[i][RS_1] <= rat[rs1_id[i]].table_data;
+                src_renamed_ar[i][RS_2] <= rat[rs2_id[i]].table_data;
                 
-                src_data_type_rat_is[i][RS_1] <= rat[rs1_id[i]].dataType;
-                src_data_type_rat_is[i][RS_2] <= rat[rs2_id[i]].dataType;
+                src_data_type_rat_ar[i][RS_1] <= rat[rs1_id[i]].dataType;
+                src_data_type_rat_ar[i][RS_2] <= rat[rs2_id[i]].dataType;
             end
-            
         end
+    end
+    
+    // Retirement Override
+    always_comb begin
+        
     end
     
     // update RAT  
