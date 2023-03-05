@@ -58,3 +58,7 @@ In the case of the 4th mispredicted branch, the following occurs:
 - misspeculated entries in ROB marked as invalid
 - Pipeline will wait until all valid entries in ROB have retired and updated RRAT
 - Finally, RRAT gets copied to FRAT and CPU resumes execution!
+
+# Retirement
+
+Will retire a maximum of 4 instructions per cycle
