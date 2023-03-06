@@ -60,7 +60,7 @@ module f_rat(
     initial begin
         for (int i = 0; i < RAT_SIZE; i++) begin
             rat[i].table_data = i;
-            rat[i].rf   = 0; 
+            rat[i].rf   = 1; 
         end
     end
     
