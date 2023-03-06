@@ -52,7 +52,7 @@ module f_rat(
     /////////////////////////////////////////////////
     
     typedef struct packed { 
-        logic dataType; //if 1, data points to ROB, else points to regfile 
+        logic rf; // 1: PRF, 0: ROB
         logic [RAT_RENAME_DATA_WIDTH-1:0] table_data; //points to addr data dependency will come from
     } rat_t;
     rat_t [RAT_SIZE-1:0] rat;
@@ -79,8 +79,8 @@ module f_rat(
                 src_renamed_ar[i][RS_1] <= rat[rs1_id[i]].table_data;
                 src_renamed_ar[i][RS_2] <= rat[rs2_id[i]].table_data;
                 
-                src_data_type_rat_ar[i][RS_1] <= rat[rs1_id[i]].dataType;
-                src_data_type_rat_ar[i][RS_2] <= rat[rs2_id[i]].dataType;
+                src_data_type_rat_ar[i][RS_1] <= rat[rs1_id[i]].rf;
+                src_data_type_rat_ar[i][RS_2] <= rat[rs2_id[i]].rf;
             end
         end
     end
@@ -92,25 +92,73 @@ module f_rat(
     
     // update RAT  
     // need to also check for rd write conflicts and rd with rob write conflicts
-    logic [ROB_MAX_RETIRE-1:0] rd_rob_w_conflict;
-     
-    // # RAT write ports = Retire Width
-    always_ff@(posedge clk) begin
-        rd_rob_w_conflict = '0;
-        if (~(branchInstruc_id[0] || storeInstruc_id[0] ||
-              branchInstruc_id[1] || storeInstruc_id[1])) begin
-            for (int r = 0; r < ROB_MAX_RETIRE; r++) begin
-                for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
-                    rd_rob_w_conflict[r] = instr_val_id[i] & ~branch_ret[r] & val_ret[r] ? 
-                                          (rd_ret[r] == rd_id[i]): 0;
+    logic [ROB_MAX_RETIRE-1:0] ret_w_val_id;
+    logic [ROB_MAX_RETIRE+ISSUE_WIDTH_MAX-1:0] rat_w_qual_id;
+    logic [ROB_MAX_RETIRE+ISSUE_WIDTH_MAX-1:0][ROB_MAX_RETIRE+ISSUE_WIDTH_MAX-1:0] rat_ret_rd_conflict_mtx_id;
+
+    // write conflict handling
+    always_comb begin
+        ret_w_val_id = val_ret & ~branch_ret; //checking which retiring instr. are updating rat/regfile
+
+        rat_ret_rd_conflict_mtx_id = '{default:0};
+        for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
+            for (int j = 0; j < ISSUE_WIDTH_MAX; j++) begin
+                if (j != i)
+                    //this mtx shows conflicts in respect to its own write port
+                    rat_ret_rd_conflict_mtx_id[i][j] = ~(storeInstruc_id[i] | branchInstruc_id[i]) & (rd_id[i] == rd_id[j]);
+            end
+            
+            for (int j = ISSUE_WIDTH_MAX; j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin
+                for (int k = 0; k < RETIRE_WIDTH_MAX; k++) begin
+                     rat_ret_rd_conflict_mtx_id[i][j] |= ret_w_val_id[k] & (rd_id[i] == rd_ret[k]);
                 end
             end
+        end
+        
+        
+        for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin  //write port in question
+            for (int j = ISSUE_WIDTH_MAX; j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin //comparison to other write ports
+                if (j != i)
+                    //this mtx shows conflicts in respect to its own write port
+                    rat_ret_rd_conflict_mtx_id[i][j] = ret_w_val_id[i-ISSUE_WIDTH_MAX] & (rd_ret[i-ISSUE_WIDTH_MAX] == rd_ret[j-ISSUE_WIDTH_MAX]);
+            end
+        end
+        
+        rat_w_qual_id = '{default:0};
+        for (int i = 0; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin 
+            for (int j = (i+1); j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin
+                rat_w_qual_id[i] |= rat_ret_rd_conflict_mtx_id[i][j];
+            end
+        end
+    
+    // create retire only ports to RAT
+    // priority given to youngest retiring instruction
+    always_ff@(posedge clk) begin
+        for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
+            if (rat_w_qual_id[i+ISSUE_WIDTH_MAX]) begin
+                rat[rd_ret[i]].table_data <= rd_ret;
+                rat[rd_ret[i]].rf         <= 1;
+            end 
+        end
+    end
+
+
+     
+    // RAT write ports connected to issuing instructions and retiring instructions
+    // priority is givien to retiring instructions
+    always_ff@(posedge clk) begin
+        if (~(branchInstruc_id[0] || storeInstruc_id[0] ||
+              branchInstruc_id[1] || storeInstruc_id[1])) begin
             
             //dual issue
             case (instr_val_id & ~{rob_full,rob_full})
                 (2'b01): begin
-                    rat[rd_id[0]].table_data <= rd_rob_w_conflict[0] ? rob_is_ptr : rd_ret;
-                    robid_is[0]              <= rob_is_ptr;
+                    if (~rat_w_qual_id[0]) begin
+                        rat[rd_id[0]].table_data <= ~rat_w_qual_id[0] ? rob_is_ptr : ;
+                        robid_is[0]              <= rob_is_ptr;
+                    end begin
+                        
+                    end
                 end
                 (2'b10): begin
                     rat[rd_id[1]].table_data <= rob_is_ptr;
