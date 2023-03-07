@@ -63,13 +63,14 @@ module f_rat(
             rat[i].table_data = i;
             rat[i].rf   = 1; 
         end
-    end
-    
-    logic [ISSUE_WIDTH_MAX-1:0] storeInstruc_id, branchInstruc_id;
-    always_comb begin
-        for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
-            storeInstruc_id[i]  = (opcode_id[i] == S_TYPE);
-            branchInstruc_id[i] = (opcode_id[i] == SB_TYPE);
+    endite ports to FRAT
+    always_ff@(posedge clk) begin
+        for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
+            if (rat_write_id[i]) begin
+                rat[rat_port_addr_id[i]].table_data <= rat_port_data_id[i];
+                rat[rat_port_addr_id[i]].rf         <= ret_val[i] ? 1 : 0; //change to constants
+            end
+        enduc_id[i] = (opcode_id[i] == SB_TYPE);
         end
     end
     
@@ -106,7 +107,7 @@ module f_rat(
             for (int j = 0; j < ISSUE_WIDTH_MAX; j++) begin
                 if (j != i)
                     //this mtx shows conflicts in respect to its own write port
-                    rat_ret_rd_conflict_mtx_id[i][j] = ~(storeInstruc_id[i] | branchInstruc_id[i]) & instr_val_id[i] (rd_id[i] == rd_id[j]);
+                    rat_ret_rd_conflict_mtx_id[i][j] = ~(storeInstruc_id[i] | branchInstruc_id[i]) & instr_val_id[i] & (rd_id[i] == rd_id[j]);
             end
             
             for (int j = ISSUE_WIDTH_MAX; j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin
@@ -136,7 +137,7 @@ module f_rat(
     logic [RETIRE_WIDTH_MAX-1:0]                    rat_write_id;
     logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rat_port_data_id;
     logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rat_instr_rd_data_id;
-    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN-1:0]       rat_port_addr_id;
+    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN      -1:0] rat_port_addr_id;
 
     // generate write enables rat
     always_comb begin
@@ -147,7 +148,6 @@ module f_rat(
             rat_write_id[i] = rat_w_qual_id[i+ISSUE_WIDTH_MAX] & ~rob_full;
         end
     end
-
 
     always_comb begin
         rat_port_data_id[0] = ret_val[0] ? rd_ret[0] : is_ptr;
@@ -209,7 +209,6 @@ module f_rat(
     end
     */
 
-   
     ///////////////////////////////////////////////////////////////////////
     /////
     ///// BRATCR  (Branch RAT Copy Register)
