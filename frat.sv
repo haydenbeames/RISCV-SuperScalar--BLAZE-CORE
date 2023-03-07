@@ -63,14 +63,21 @@ module f_rat(
             rat[i].table_data = i;
             rat[i].rf   = 1; 
         end
-    endite ports to FRAT
+
+    logic [ISSUE_WIDTH_MAX-1:0] storeInstruc_id, branchInstruc_id;
+    always_comb begin
+        for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
+            storeInstruc_id[i]  = (opcode_id[i] == S_TYPE);
+            branchInstruc_id[i] = (opcode_id[i] == SB_TYPE);
+        end
+    end
+    
     always_ff@(posedge clk) begin
         for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
             if (rat_write_id[i]) begin
                 rat[rat_port_addr_id[i]].table_data <= rat_port_data_id[i];
                 rat[rat_port_addr_id[i]].rf         <= ret_val[i] ? 1 : 0; //change to constants
             end
-        enduc_id[i] = (opcode_id[i] == SB_TYPE);
         end
     end
     
