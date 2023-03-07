@@ -33,6 +33,7 @@ module f_rat(
 
     //inputs from rob
     input logic  [ROB_SIZE_CLOG-1:0] rob_is_ptr,
+    input logic  [ROB_SIZE_CLOG-1:0] rob_is_ptr_p1,
     input logic  [ROB_SIZE_CLOG-1:0] mispredict_tag_id,
     input logic   branch_clear_id,
     input logic   rob_full,
@@ -105,7 +106,7 @@ module f_rat(
             for (int j = 0; j < ISSUE_WIDTH_MAX; j++) begin
                 if (j != i)
                     //this mtx shows conflicts in respect to its own write port
-                    rat_ret_rd_conflict_mtx_id[i][j] = ~(storeInstruc_id[i] | branchInstruc_id[i]) & (rd_id[i] == rd_id[j]);
+                    rat_ret_rd_conflict_mtx_id[i][j] = ~(storeInstruc_id[i] | branchInstruc_id[i]) & instr_val_id[i] (rd_id[i] == rd_id[j]);
             end
             
             for (int j = ISSUE_WIDTH_MAX; j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin
@@ -127,23 +128,51 @@ module f_rat(
         rat_w_qual_id = '{default:0};
         for (int i = 0; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin 
             for (int j = (i+1); j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin
-                rat_w_qual_id[i] |= rat_ret_rd_conflict_mtx_id[i][j];
+                rat_w_qual_id[i] |= ~rat_ret_rd_conflict_mtx_id[i][j];
             end
         end
+    end
     
-    // create retire only ports to RAT
-    // priority given to youngest retiring instruction
-    always_ff@(posedge clk) begin
+    logic [RETIRE_WIDTH_MAX-1:0]                    rat_write_id;
+    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rat_port_data_id;
+    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rat_instr_rd_data_id;
+    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN-1:0]       rat_port_addr_id;
+
+    // generate write enables rat
+    always_comb begin
+        for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
+            rat_write_id[i] = (rat_w_qual_id[i] | rat_w_qual_id[i+ISSUE_WIDTH_MAX]) & ~rob_full; //test with valid signals, valid is included above but simulate to be sure
+        end
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
-            if (rat_w_qual_id[i+ISSUE_WIDTH_MAX]) begin
-                rat[rd_ret[i]].table_data <= rd_ret;
-                rat[rd_ret[i]].rf         <= 1;
-            end 
+            rat_write_id[i] = rat_w_qual_id[i+ISSUE_WIDTH_MAX] & ~rob_full;
         end
     end
 
 
-     
+    always_comb begin
+        rat_port_data_id[0] = ret_val[0] ? rd_ret[0] : is_ptr;
+        rat_port_data_id[1] = ret_val[1] ? rd_ret[1] : (instr_val_id[0] ? rob_is_ptr_p1 : rob_is_ptr);
+
+        rat_port_addr_id[0] = ret_val[0] ? rd_ret[0] : rd_id[0];
+        rat_port_addr_id[1] = ret_val[1] ? rd_ret[1] : rd_id[1];
+
+        for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
+            rat_port_data_id[i] = ret_val[i];
+            rat_port_addr_id[i] =  rd_ret[i];
+        end
+    end
+
+    // write ports to FRAT
+    always_ff@(posedge clk) begin
+        for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
+            if (rat_write_id[i]) begin
+                rat[rat_port_addr_id[i]].table_data <= rat_port_data_id[i];
+                rat[rat_port_addr_id[i]].rf         <= ret_val[i] ? 1 : 0; //change to constants
+            end
+        end
+    end
+    
+    /*
     // RAT write ports connected to issuing instructions and retiring instructions
     // priority is givien to retiring instructions
     always_ff@(posedge clk) begin
@@ -177,12 +206,10 @@ module f_rat(
                 default: begin end
             endcase
         end
-        
-        for (int r = 0; r < ROB_MAX_RETIRE; r++) begin
-            
-        end
     end
-        
+    */
+
+   
     ///////////////////////////////////////////////////////////////////////
     /////
     ///// BRATCR  (Branch RAT Copy Register)
