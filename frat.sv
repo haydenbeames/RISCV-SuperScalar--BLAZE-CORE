@@ -164,8 +164,8 @@ module f_rat(
         rat_port_addr_id[1] = val_ret[1] ? rd_ret[1] : rd_id[1];
 
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
-            rat_port_data_id[i] = val_ret[i];
-            rat_port_addr_id[i] =  rd_ret[i];
+            rat_port_data_id[i] = rd_ret[i]; //MAY BE LESS CDYN BY JUST RESETTING rat.rf
+            rat_port_addr_id[i] = rd_ret[i];
         end
     end
 
