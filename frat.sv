@@ -80,6 +80,7 @@ module f_rat(
     end
     
     //rename rs1 & rs2 before bypass from rob
+    // FIXME : change to renamed from one of the read ports, will need 4 + 4 readports?
     always_ff@(posedge clk) begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             if (instr_val_id[i]) begin
@@ -174,7 +175,7 @@ module f_rat(
         for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
             if (rat_write_id[i]) begin
                 rat[rat_port_addr_id[i]].table_data <= rat_port_data_id[i];
-                rat[rat_port_addr_id[i]].rf         <= val_ret[i] ? 1 : 0; //change to constants
+                rat[rat_port_addr_id[i]].rf         <= val_ret[i] ? 1 : 0; //change to constants  //FIX ME * WRONG PRIORITY*
             end
         end
     end
