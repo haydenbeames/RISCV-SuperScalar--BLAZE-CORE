@@ -138,7 +138,7 @@ module f_rat(
         //check if data in ROB
         for (int i = 0; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin
             if (~rat_w_qual_id[i]) begin
-                rat_w_qual_id[i] |= 
+                rat_w_qual_id[i] |= (rat[rd_ret[i]].table_data == robid_ret[i]) & ~rat[rd_ret[i]].rf; // should adjust to read ports
             end
         end
         
