@@ -92,7 +92,7 @@ module f_rat(
         end
     end
     
-    // Retirement Override
+    // Retirement Override (AR stage)
     always_comb begin
         
     end
@@ -154,7 +154,8 @@ module f_rat(
             rat_write_id[i] = ~rat_w_qual_id[i+ISSUE_WIDTH_MAX] & ~rob_full;
         end
     end
-
+    
+    // FIXME ** issuing instructions should take RAT write priority
     always_comb begin
         rat_port_data_id[0] = val_ret[0] ? rd_ret[0] : rob_is_ptr;
         rat_port_data_id[1] = val_ret[1] ? rd_ret[1] : (instr_val_id[0] ? rob_is_ptr_p1 : rob_is_ptr);
