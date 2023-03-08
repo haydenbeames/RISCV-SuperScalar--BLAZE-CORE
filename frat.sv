@@ -41,12 +41,18 @@ module f_rat(
     input logic  [ROB_MAX_RETIRE-1:0][SRC_LEN-1:0] rd_ret,
     input logic  [ROB_MAX_RETIRE-1:0]              val_ret,
     input logic  [ROB_MAX_RETIRE-1:0]           branch_ret,
+    input logic  [ROB_MAX_RETIRE-1:0][ROB_SIZE_CLOG-1:0] robid_ret,
     
     //outputs of f-rat
     output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ar,
     output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                      src_data_type_rat_ar, // 1: PRF, 0: ROB
     output logic [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                             robid_is
     );
+    
+    logic [RETIRE_WIDTH_MAX-1:0]                    rat_write_id;
+    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rat_port_data_id;
+    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rat_instr_rd_data_id;
+    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN      -1:0] rat_port_addr_id;
     
     /////////////////////////////////////////////////
     ///// Front-End Register Alias Table (FRAT)
@@ -63,21 +69,13 @@ module f_rat(
             rat[i].table_data = i;
             rat[i].rf   = 1; 
         end
+    end
 
     logic [ISSUE_WIDTH_MAX-1:0] storeInstruc_id, branchInstruc_id;
     always_comb begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             storeInstruc_id[i]  = (opcode_id[i] == S_TYPE);
             branchInstruc_id[i] = (opcode_id[i] == SB_TYPE);
-        end
-    end
-    
-    always_ff@(posedge clk) begin
-        for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
-            if (rat_write_id[i]) begin
-                rat[rat_port_addr_id[i]].table_data <= rat_port_data_id[i];
-                rat[rat_port_addr_id[i]].rf         <= ret_val[i] ? 1 : 0; //change to constants
-            end
         end
     end
     
@@ -103,9 +101,10 @@ module f_rat(
     // need to also check for rd write conflicts and rd with rob write conflicts
     logic [ROB_MAX_RETIRE-1:0] ret_w_val_id;
     logic [ROB_MAX_RETIRE+ISSUE_WIDTH_MAX-1:0] rat_w_qual_id;
+    logic [ROB_MAX_RETIRE+ISSUE_WIDTH_MAX-1:0] rat_w_qual_ar;
     logic [ROB_MAX_RETIRE+ISSUE_WIDTH_MAX-1:0][ROB_MAX_RETIRE+ISSUE_WIDTH_MAX-1:0] rat_ret_rd_conflict_mtx_id;
 
-    // write conflict handling
+    // write conflict detector
     always_comb begin
         ret_w_val_id = val_ret & ~branch_ret; //checking which retiring instr. are updating rat/regfile
 
@@ -113,7 +112,6 @@ module f_rat(
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             for (int j = 0; j < ISSUE_WIDTH_MAX; j++) begin
                 if (j != i)
-                    //this mtx shows conflicts in respect to its own write port
                     rat_ret_rd_conflict_mtx_id[i][j] = ~(storeInstruc_id[i] | branchInstruc_id[i]) & instr_val_id[i] & (rd_id[i] == rd_id[j]);
             end
             
@@ -122,13 +120,10 @@ module f_rat(
                      rat_ret_rd_conflict_mtx_id[i][j] |= ret_w_val_id[k] & (rd_id[i] == rd_ret[k]);
                 end
             end
-        end
-        
-        
+        end        
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin  //write port in question
             for (int j = ISSUE_WIDTH_MAX; j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin //comparison to other write ports
                 if (j != i)
-                    //this mtx shows conflicts in respect to its own write port
                     rat_ret_rd_conflict_mtx_id[i][j] = ret_w_val_id[i-ISSUE_WIDTH_MAX] & (rd_ret[i-ISSUE_WIDTH_MAX] == rd_ret[j-ISSUE_WIDTH_MAX]);
             end
         end
@@ -136,35 +131,39 @@ module f_rat(
         rat_w_qual_id = '{default:0};
         for (int i = 0; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin 
             for (int j = (i+1); j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin
-                rat_w_qual_id[i] |= ~rat_ret_rd_conflict_mtx_id[i][j];
+                rat_w_qual_id[i] |= rat_ret_rd_conflict_mtx_id[i][j];
             end
         end
+        
+        //check if data in ROB
+        for (int i = 0; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin
+            if (~rat_w_qual_id[i]) begin
+                rat_w_qual_id[i] |= 
+            end
+        end
+        
+        rat_w_qual_ar <= rat_w_qual_id;
     end
-    
-    logic [RETIRE_WIDTH_MAX-1:0]                    rat_write_id;
-    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rat_port_data_id;
-    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rat_instr_rd_data_id;
-    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN      -1:0] rat_port_addr_id;
 
     // generate write enables rat
     always_comb begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
-            rat_write_id[i] = (rat_w_qual_id[i] | rat_w_qual_id[i+ISSUE_WIDTH_MAX]) & ~rob_full; //test with valid signals, valid is included above but simulate to be sure
+            rat_write_id[i] = (~rat_w_qual_id[i] | ~rat_w_qual_id[i+ISSUE_WIDTH_MAX]) & ~rob_full; //test with valid signals, valid is included above but simulate to be sure
         end
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
-            rat_write_id[i] = rat_w_qual_id[i+ISSUE_WIDTH_MAX] & ~rob_full;
+            rat_write_id[i] = ~rat_w_qual_id[i+ISSUE_WIDTH_MAX] & ~rob_full;
         end
     end
 
     always_comb begin
-        rat_port_data_id[0] = ret_val[0] ? rd_ret[0] : is_ptr;
-        rat_port_data_id[1] = ret_val[1] ? rd_ret[1] : (instr_val_id[0] ? rob_is_ptr_p1 : rob_is_ptr);
+        rat_port_data_id[0] = val_ret[0] ? rd_ret[0] : rob_is_ptr;
+        rat_port_data_id[1] = val_ret[1] ? rd_ret[1] : (instr_val_id[0] ? rob_is_ptr_p1 : rob_is_ptr);
 
-        rat_port_addr_id[0] = ret_val[0] ? rd_ret[0] : rd_id[0];
-        rat_port_addr_id[1] = ret_val[1] ? rd_ret[1] : rd_id[1];
+        rat_port_addr_id[0] = val_ret[0] ? rd_ret[0] : rd_id[0];
+        rat_port_addr_id[1] = val_ret[1] ? rd_ret[1] : rd_id[1];
 
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
-            rat_port_data_id[i] = ret_val[i];
+            rat_port_data_id[i] = val_ret[i];
             rat_port_addr_id[i] =  rd_ret[i];
         end
     end
@@ -174,7 +173,7 @@ module f_rat(
         for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
             if (rat_write_id[i]) begin
                 rat[rat_port_addr_id[i]].table_data <= rat_port_data_id[i];
-                rat[rat_port_addr_id[i]].rf         <= ret_val[i] ? 1 : 0; //change to constants
+                rat[rat_port_addr_id[i]].rf         <= val_ret[i] ? 1 : 0; //change to constants
             end
         end
     end
