@@ -45,15 +45,18 @@ module f_rat(
     
     //outputs of f-rat
     output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ar,
-    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                      src_data_type_rat_ar, // 1: PRF, 0: ROB
+    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                      src_data_type_ar, // 1: PRF, 0: ROB
+    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_rs,
+    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                      src_data_type_rs, // 1: PRF, 0: ROB
+
     output logic [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                             robid_is
     );
     
-    logic [RETIRE_WIDTH_MAX-1:0]                    rat_write_id;
-    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rat_port_data_id;
-    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rat_instr_rd_data_id;
-    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN      -1:0] rat_port_addr_id;
-    
+    logic [RETIRE_WIDTH_MAX-1:0]                                        rat_write_id;
+    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                     rat_port_data_id;
+    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                     rat_instr_rd_data_id;
+    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN      -1:0]                     rat_port_addr_id;
+
     /////////////////////////////////////////////////
     ///// Front-End Register Alias Table (FRAT)
     /////////////////////////////////////////////////
@@ -72,6 +75,7 @@ module f_rat(
     end
 
     logic [ISSUE_WIDTH_MAX-1:0] storeInstruc_id, branchInstruc_id;
+
     always_comb begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             storeInstruc_id[i]  = (opcode_id[i] == S_TYPE);
@@ -81,21 +85,39 @@ module f_rat(
     
     //rename rs1 & rs2 before bypass from rob
     // FIXME : change to renamed from one of the read ports, will need 4 + 4 readports?
+
     always_ff@(posedge clk) begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             if (instr_val_id[i]) begin
                 src_renamed_ar[i][RS_1] <= rat[rs1_id[i]].table_data;
                 src_renamed_ar[i][RS_2] <= rat[rs2_id[i]].table_data;
                 
-                src_data_type_rat_ar[i][RS_1] <= rat[rs1_id[i]].rf;
-                src_data_type_rat_ar[i][RS_2] <= rat[rs2_id[i]].rf;
+                src_data_type_ar[i][RS_1] <= rat[rs1_id[i]].rf;
+                src_data_type_ar[i][RS_2] <= rat[rs2_id[i]].rf;
+            end
+        end
+    end
+
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ret_ovrd_ar,
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_ret_ovrd_ar, // 1: PRF, 0: ROB
+
+    always_comb begin
+        for (int s = 0; s < NUM_SRCS; s++) begin
+            src_renamed_ret_ovrd_ar[0][s] = src_renamed_ar[0][s]; //no dependencies for instr 0
+            for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin
+                src_renamed_ret_ovrd_ar[i][s] = src_renamed_ar[0][s];
             end
         end
     end
     
     // Retirement Override (AR stage)
-    always_comb begin
-        
+    always_ff@(posedge clk) begin
+        for (int s = 0; s < NUM_SRCS; s++) begin
+            src_renamed_rs[0][s] <= src_renamed_ar[0][s]; //no dependencies for instr 0
+            for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin
+                src_renamed_rs[i][s] <= src_renamed_ar[0][s];
+            end
+        end
     end
     
     // update RAT  
@@ -130,14 +152,14 @@ module f_rat(
         end
         
         rat_w_qual_id = '{default:0};
-        for (int i = 0; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin 
+        for (int i = 0; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin
             for (int j = (i+1); j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin
                 rat_w_qual_id[i] |= rat_ret_rd_conflict_mtx_id[i][j];
             end
         end
         
         //check if retirement data match in RAT
-        for (int i = 0; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin
+        for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
             if (~rat_w_qual_id[i]) begin
                 rat_w_qual_id[i] |= (rat[rd_ret[i]].table_data == robid_ret[i]) & ~rat[rd_ret[i]].rf; // should adjust to read ports
             end
@@ -158,11 +180,11 @@ module f_rat(
     
     // FIXME ** issuing instructions should take RAT write priority
     always_comb begin
-        rat_port_data_id[0] = val_ret[0] ? rd_ret[0] : rob_is_ptr;
-        rat_port_data_id[1] = val_ret[1] ? rd_ret[1] : (instr_val_id[0] ? rob_is_ptr_p1 : rob_is_ptr);
+        rat_port_data_id[0] = instr_val_id[0] ? rob_is_ptr : rd_ret[0];
+        rat_port_data_id[1] = instr_val_id[1] ? (instr_val_id[0] ? rob_is_ptr_p1 : rob_is_ptr[0]) : rd_ret[1];
 
-        rat_port_addr_id[0] = val_ret[0] ? rd_ret[0] : rd_id[0];
-        rat_port_addr_id[1] = val_ret[1] ? rd_ret[1] : rd_id[1];
+        rat_port_addr_id[0] = instr_val_id[0] ? rd_id[0] : rd_ret[0];
+        rat_port_addr_id[1] = instr_val_id[1] ? rd_id[1] : rd_ret[1];
 
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
             rat_port_data_id[i] = rd_ret[i]; //MAY BE LESS CDYN BY JUST RESETTING rat.rf
@@ -179,43 +201,6 @@ module f_rat(
             end
         end
     end
-    
-    /*
-    // RAT write ports connected to issuing instructions and retiring instructions
-    // priority is givien to retiring instructions
-    always_ff@(posedge clk) begin
-        if (~(branchInstruc_id[0] || storeInstruc_id[0] ||
-              branchInstruc_id[1] || storeInstruc_id[1])) begin
-            
-            //dual issue
-            case (instr_val_id & ~{rob_full,rob_full})
-                (2'b01): begin
-                    if (~rat_w_qual_id[0]) begin
-                        rat[rd_id[0]].table_data <= ~rat_w_qual_id[0] ? rob_is_ptr : ;
-                        robid_is[0]              <= rob_is_ptr;
-                    end begin
-                        
-                    end
-                end
-                (2'b10): begin
-                    rat[rd_id[1]].table_data <= rob_is_ptr;
-                    robid_is[1]              <= rob_is_ptr;
-                end
-                (2'b11): begin
-                    if (rd_id[0] == rd_id[1]) begin  // cover rd conflict
-                        rat[rd_id[1]].table_data <= rob_is_ptr + 1;
-                    end else begin
-                        rat[rd_id[0]].table_data <= rob_is_ptr;
-                        robid_is[0]              <= rob_is_ptr;
-                        rat[rd_id[1]].table_data <= rob_is_ptr + 1;
-                        robid_is[1]              <= rob_is_ptr + 1;
-                    end
-                end
-                default: begin end
-            endcase
-        end
-    end
-    */
 
     ///////////////////////////////////////////////////////////////////////
     /////
