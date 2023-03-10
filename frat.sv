@@ -26,10 +26,8 @@
 module f_rat(
     input logic   clk, rst,
     input logic  [ISSUE_WIDTH_MAX-1:0] instr_val_id, //valid instr id
-    input logic  [ISSUE_WIDTH_MAX-1:0][OPCODE_LEN-1:0] opcode_id,
-    input logic  [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1   :0] rd_id,
-    input logic  [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1   :0] rs1_id,
-    input logic  [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1   :0] rs2_id,
+    input logic  [ISSUE_WIDTH_MAX-1:0][31:0] instr_id;
+
 
     //inputs from rob
     input logic  [ROB_SIZE_CLOG-1:0] rob_is_ptr,
@@ -49,6 +47,12 @@ module f_rat(
 
     output logic [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                             robid_is
     );
+
+    logic [ISSUE_WIDTH_MAX-1:0][OPCODE_LEN-1:0] opcode_id;
+    logic [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1   :0] rd_id;
+    logic [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1   :0] rs1_id;
+    logic [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1   :0] rs2_id;
+    logic [ISSUE_WIDTH_MAX-1:0][31:0] immGenOut_id, immGenOut_ar;
     
     logic [RETIRE_WIDTH_MAX-1:0]                                        rat_write_id;
     logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                     rat_port_data_id;
@@ -60,6 +64,44 @@ module f_rat(
 
     logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ar,
     logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_ar, // 1: PRF, 0: ROB
+
+    /////////////////////////////////////////////////
+    //
+    // Decode/Immediate Gen Logic
+    //
+    /////////////////////////////////////////////////
+
+    always_comb begin
+        opcode_id = instr_id[6:0];
+        rd_id     = instr_id[11:7];
+        rs1_id    = instr_id[19:15];
+        rs2_id    = instr_id[24:20];
+    end
+
+    always_comb begin
+        case(opcode_id)
+            I_TYPE1:
+                immGenOut_id = {{20{instruction[31]}}, instruction[31:20]};
+            I_TYPE2: 
+                immGenOut_id = {{20{instruction[31]}}, instruction[31:20]};
+            I_TYPE3:
+                immGenOut_id = {{20{instruction[31]}}, instruction[31:20]};
+            S_TYPE:
+                immGenOut_id = {{20{instruction[31]}}, instruction[31:25], instruction[11:7]};
+            SB_TYPE: 
+                immGenOut_id = {{19{instruction[31]}}, instruction[31], instruction[7],
+                 instruction[30:25], instruction[12:8]};
+            U_TYPE1:
+                immGenOut_id = {instruction[31:12],12'b0};
+            U_TYPE2:
+                immGenOut_id = {{12{instruction[31]}}, instruction[31:12]};
+            J_TYPE:
+                immGenOut_id = {{12{instruction[20]}}, instruction[20], instruction[10:1],
+                 instruction[11], instruction[19:12]};
+            default:
+                immGenOut_id = DEFAULT_IMMEDIATE;
+        endcase
+    end
 
     /////////////////////////////////////////////////
     ///// Front-End Register Alias Table (FRAT)
@@ -199,11 +241,13 @@ module f_rat(
             robid_ret_ar <= '{default:0};
             instr_val_ar <= '0;
             rd_ret_ar    <= '0;
+            immGenOut_ar <= '0;
         end else begin
             ret_val_ar   <= ret_w_val_id;
             robid_ret_ar <= robid_ret;
             isntr_val_ar <= instr_val_id;
             rd_ret_ar    <= rd_ret;
+            immGenOut_ar <= immGenOut_id;
         end
     end
     
