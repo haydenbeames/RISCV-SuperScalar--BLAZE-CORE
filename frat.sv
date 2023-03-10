@@ -44,10 +44,8 @@ module f_rat(
     input logic  [ROB_MAX_RETIRE-1:0][ROB_SIZE_CLOG-1:0] robid_ret,
     
     //outputs of f-rat
-    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ar,
-    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                      src_data_type_ar, // 1: PRF, 0: ROB
-    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_rs,
-    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                      src_data_type_rs, // 1: PRF, 0: ROB
+    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_src_dep_ovrd_ar,
+    output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_src_dep_ovrd_ar, // 1: PRF, 0: ROB 
 
     output logic [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                             robid_is
     );
@@ -59,6 +57,9 @@ module f_rat(
     
     logic [RETIRE_WIDTH_MAX-1:0] ret_val_ar;
     logic [ISSUE_WIDTH_MAX-1:0] instr_val_ar;
+
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ar,
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_ar, // 1: PRF, 0: ROB
 
     /////////////////////////////////////////////////
     ///// Front-End Register Alias Table (FRAT)
@@ -97,67 +98,6 @@ module f_rat(
                 
                 src_data_type_ar[i][RS_1] <= rat[rs1_id[i]].rf;
                 src_data_type_ar[i][RS_2] <= rat[rs2_id[i]].rf;
-            end
-        end
-    end
-    
-    //////////////////////////////////////////
-    //
-    //  ID/AR
-    //
-    //////////////////////////////////////////
-    
-    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] robid_ret_ar;
-    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN-1:0] rd_ret_ar;
-    
-    always_ff@(posedge clk) begin
-        if (rst) begin
-            ret_val_ar   <= '0;
-            robid_ret_ar <= '{default:0};
-            instr_val_ar <= '0;
-            rd_ret_ar    <= '0;
-        end else begin
-            ret_val_ar   <= ret_w_val_id;
-            robid_ret_ar <= robid_ret;
-            isntr_val_ar <= instr_val_id;
-            rd_ret_ar    <= rd_ret;
-        end
-    end
-    
-    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ret_ovrd_ar;
-    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_ret_ovrd_ar; // 1: PRF, 0: ROB 
-    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_src_dep_ovrd_ar;
-    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_src_dep_ovrd_ar; // 1: PRF, 0: ROB 
-    
-    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RETIRE_WIDTH_MAX-1:0] ret_ovrd_dep_mtx_ar;
-    
-    //retirement override dependency matrix
-    always_comb begin
-        for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
-            for (int s = 0; s < NUM_SRCS; s++) begin
-                for (int r = 0; r < RETIRE_WIDTH_MAX; r++) begin
-                    //override dependency matrix
-                    ret_ovrd_dep_mtx_ar[i][s][r] = (instr_val_ar[i] & src_renamed_ar[i][s]) == (robid_ret_ar[r] & ret_val_ar[r]);
-                    
-                    //override assignment
-                    src_renamed_ret_ovrd_ar[i][s]   = ret_ovrd_dep_mtx_ar[i][s][r] ? rd_ret_ar[r]  : src_renamed_ret_ovrd_ar[i][s];
-                    src_data_type_ret_ovrd_ar[i][s] = ret_ovrd_dep_mtx_ar[i][s][r] ? PRF_DATA_TYPE : src_data_type_ret_ovrd_ar[i][s];
-                end
-            end
-        end
-    end
-    
-    logic [ISSUE_WIDTH_MAX-1:1][ISSUE_WIDTH_MAX-2:0][NUM_SRCS-1:0] src_dep_ovrd_mtx_ar;
-    
-    always_comb begin
-        for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin //instr 0 will not have any dependencies
-            for (int j = 0; j < ISSUE_WIDTH_MAX-1; i++) begin //cannot compare last instr to itself
-                for (int s = 0; s < NUM_SRCS; s++) begin
-                    src_dep_ovrd_mtx_ar[i][j][s] = (instr_val_ar[i] & src_renamed_ret_ovrd_ar[i][s]) == (instr_val_ar[j] & src_renamed_ret_ovrd_ar[j][s]);
-                    
-                    src_renamed_src_dep_ovrd_ar[i][s]   = src_dep_ovrd_mtx_ar[i][j][s] ? src_renamed_ret_ovrd_ar[j][s]   : src_renamed_src_dep_ovrd_ar[i][s]; 
-                    src_data_type_src_dep_ovrd_ar[i][s] = src_dep_ovrd_mtx_ar[i][j][s] ? src_data_type_ret_ovrd_ar[i][s] : src_data_type_src_dep_ovrd_ar[i][s];
-                end
             end
         end
     end
@@ -240,6 +180,65 @@ module f_rat(
             if (rat_write_id[i]) begin
                 rat[rat_port_addr_id[i]].table_data <= rat_port_data_id[i];
                 rat[rat_port_addr_id[i]].rf         <= val_ret[i] ? 1 : 0; //change to constants  //FIX ME * WRONG PRIORITY*
+            end
+        end
+    end
+
+    //////////////////////////////////////////
+    //
+    //  ID/AR 
+    //
+    //////////////////////////////////////////
+    
+    logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] robid_ret_ar;
+    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN-1:0] rd_ret_ar;
+    
+    always_ff@(posedge clk) begin
+        if (rst) begin
+            ret_val_ar   <= '0;
+            robid_ret_ar <= '{default:0};
+            instr_val_ar <= '0;
+            rd_ret_ar    <= '0;
+        end else begin
+            ret_val_ar   <= ret_w_val_id;
+            robid_ret_ar <= robid_ret;
+            isntr_val_ar <= instr_val_id;
+            rd_ret_ar    <= rd_ret;
+        end
+    end
+    
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ret_ovrd_ar;
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_ret_ovrd_ar; // 1: PRF, 0: ROB 
+    
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RETIRE_WIDTH_MAX-1:0] ret_ovrd_dep_mtx_ar;
+    
+    //retirement override dependency matrix
+    always_comb begin
+        for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
+            for (int s = 0; s < NUM_SRCS; s++) begin
+                for (int r = 0; r < RETIRE_WIDTH_MAX; r++) begin
+                    //override dependency matrix
+                    ret_ovrd_dep_mtx_ar[i][s][r] = (instr_val_ar[i] & src_renamed_ar[i][s]) == (robid_ret_ar[r] & ret_val_ar[r]);
+                    
+                    //override assignment
+                    src_renamed_ret_ovrd_ar[i][s]   = ret_ovrd_dep_mtx_ar[i][s][r] ? rd_ret_ar[r]  : src_renamed_ret_ovrd_ar[i][s];
+                    src_data_type_ret_ovrd_ar[i][s] = ret_ovrd_dep_mtx_ar[i][s][r] ? PRF_DATA_TYPE : src_data_type_ret_ovrd_ar[i][s];
+                end
+            end
+        end
+    end
+    
+    logic [ISSUE_WIDTH_MAX-1:1][ISSUE_WIDTH_MAX-2:0][NUM_SRCS-1:0] src_dep_ovrd_mtx_ar;
+    
+    always_comb begin
+        for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin //instr 0 will not have any dependencies
+            for (int j = 0; j < ISSUE_WIDTH_MAX-1; i++) begin //cannot compare last instr to itself
+                for (int s = 0; s < NUM_SRCS; s++) begin
+                    src_dep_ovrd_mtx_ar[i][j][s] = (instr_val_ar[i] & src_renamed_ret_ovrd_ar[i][s]) == (instr_val_ar[j] & src_renamed_ret_ovrd_ar[j][s]);
+                    
+                    src_renamed_src_dep_ovrd_ar[i][s]   = src_dep_ovrd_mtx_ar[i][j][s] ? src_renamed_ret_ovrd_ar[j][s]   : src_renamed_src_dep_ovrd_ar[i][s]; 
+                    src_data_type_src_dep_ovrd_ar[i][s] = src_dep_ovrd_mtx_ar[i][j][s] ? src_data_type_ret_ovrd_ar[i][s] : src_data_type_src_dep_ovrd_ar[i][s];
+                end
             end
         end
     end
