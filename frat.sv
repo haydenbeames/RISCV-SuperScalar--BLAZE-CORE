@@ -124,27 +124,22 @@ module f_rat(
         end
     end
     
-    logic [ISSUE_WIDTH_MAX-1:0][RETIRE_WIDTH_MAX-1:0][NUM_SRCS-1:0] ret_ovrd_dep_mtx_ar;
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ret_ovrd_ar;
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_ret_ovrd_ar; // 1: PRF, 0: ROB 
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_src_dep_ovrd_ar;
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_src_dep_ovrd_ar; // 1: PRF, 0: ROB 
+    
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RETIRE_WIDTH_MAX-1:0] ret_ovrd_dep_mtx_ar;
     
     //retirement override dependency matrix
     always_comb begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             for (int s = 0; s < NUM_SRCS; s++) begin
                 for (int r = 0; r < RETIRE_WIDTH_MAX; r++) begin
+                    //override dependency matrix
                     ret_ovrd_dep_mtx_ar[i][s][r] = (instr_val_ar[i] & src_renamed_ar[i][s]) == (robid_ret_ar[r] & ret_val_ar[r]);
-                end
-            end
-        end
-    end
-    
-    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ret_ovrd_ar;
-    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_ret_ovrd_ar; // 1: PRF, 0: ROB 
-    
-    //retirement overide assignment
-    always_comb begin
-        for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
-            for (int s = 0; s < NUM_SRCS; s++) begin
-                for (int r = 0; r < RETIRE_WIDTH_MAX; r++) begin
+                    
+                    //override assignment
                     src_renamed_ret_ovrd_ar[i][s]   = ret_ovrd_dep_mtx_ar[i][s][r] ? rd_ret_ar[r]  : src_renamed_ret_ovrd_ar[i][s];
                     src_data_type_ret_ovrd_ar[i][s] = ret_ovrd_dep_mtx_ar[i][s][r] ? PRF_DATA_TYPE : src_data_type_ret_ovrd_ar[i][s];
                 end
@@ -158,7 +153,10 @@ module f_rat(
         for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin //instr 0 will not have any dependencies
             for (int j = 0; j < ISSUE_WIDTH_MAX-1; i++) begin //cannot compare last instr to itself
                 for (int s = 0; s < NUM_SRCS; s++) begin
-                    src_dep_ovrd_mtx_ar[i][j][s] = (instr_val_ar[i] & src_renamed_ret_ovrd_ar[i][s]) == (instr_val_ar[j] & src_renamed_ret_ovrd_ar[j][s])
+                    src_dep_ovrd_mtx_ar[i][j][s] = (instr_val_ar[i] & src_renamed_ret_ovrd_ar[i][s]) == (instr_val_ar[j] & src_renamed_ret_ovrd_ar[j][s]);
+                    
+                    src_renamed_src_dep_ovrd_ar[i][s]   = src_dep_ovrd_mtx_ar[i][j][s] ? src_renamed_ret_ovrd_ar[j][s]   : src_renamed_src_dep_ovrd_ar[i][s]; 
+                    src_data_type_src_dep_ovrd_ar[i][s] = src_dep_ovrd_mtx_ar[i][j][s] ? src_data_type_ret_ovrd_ar[i][s] : src_data_type_src_dep_ovrd_ar[i][s];
                 end
             end
         end
