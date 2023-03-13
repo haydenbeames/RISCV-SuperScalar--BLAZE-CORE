@@ -32,7 +32,7 @@ Instruction Fetch | Instruction Decode/Rename | Allocate/Rename | Issue | Reserv
 -uop will be assigned to an open Reservation Station (RSV)
 
 ## RS (Reservation Station) STAGE 
-
+Centralized Reservation Station to reduce stalls
 
 
 
