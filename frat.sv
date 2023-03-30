@@ -103,60 +103,15 @@ module f_rat(
         endcase
     end
     
-    //CASE STATEMENT VERSION
     always_comb begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
-            case (opcode_id[i]):
-                loadInstruc_id:   //lw
+            case(opcode_id[i])
+                I_TYPE1: //JALR
                     alu_ctrl_id[i] = ADD_OP;
-                storeInstruc_id:  //sw
+                I_TYPE2: //lw
                     alu_ctrl_id[i] = ADD_OP;
-                branchInstruc:       //branch
-                    rsv_dest_id[i] = BEU_RSV_MASK;
-                    alu_ctrl_id[i] = SUB_OP;
-                (ALUInstruc || ALUImmInstrucFuncS): //R_TYPE 
-                    rsv_dest_id[i] = ALU_RSV_MASK;
-                    if (func7_id[i] == FUNC_SEVEN_DIFF) begin
-                        case(func3_id[i]):
-                            SRAI_FUNC3: //srai
-                                alu_ctrl_id[i] = SHIFT_R_ARITH_OP;
-                            SUB_FUNC3: //sub     //***NOTE DID NOT CREATE CONSTANT -- CONSTANT SHOULD BE ZERO***
-                                alu_ctrl_id[i] = SUB_OP;
-                            SRA_FUNC3: //sra
-                                alu_ctrl_id[i] = SHIFT_R_ARITH_OP;
-                            default:
-                                alu_ctrl_id[i] = ADD_OP;
-                        endcase
-                    end else begin
-                        case (func3_id[i]):
-                            SLLI_FUNC3: //slli
-                                alu_ctrl_id[i] = SHIFT_L_LOGICAL_OP;
-                            SRLI_FUNC3: //srli
-                                alu_ctrl_id[i] = SHIFT_R_LOGICAL_OP;
-                            ADD_FUNC3:   //add //***NOTE DID NOT CREATE CONSTANT -- CONSTANT SHOULD BE ZERO***
-                                alu_ctrl_id[i] = ADD_OP;
-                            SLL_FUNC3: //sll
-                                alu_ctrl_id[i] = SHIFT_L_LOGICAL_OP;
-                            SLT_FUNC3: //slt
-                                alu_ctrl_id[i] = LESS_THAN_OP;
-                            SLTU_FUNC3: //sltu
-                                alu_ctrl_id[i] = LESS_THAN_OP;
-                            XOR_FUNC3: //xor
-                                alu_ctrl_id[i] = XOR_OP;
-                            SRL_FUNC3: //srl
-                                alu_ctrl_id[i] = SHIFT_R_LOGICAL_OP;
-                            OR_FUNC3: //or
-                                alu_ctrl_id[i] = OR_OP;
-                            AND_FUNC3: //and
-                                alu_ctrl_id[i] = AND_OP;
-                            default: 
-                                alu_ctrl_id[i] = ADD_OP;
-                        endcase
-                    end
-
-                ALUImmInstrucNoFuncS:
-                    rsv_dest_id[i] = ALU_RSV_MASK;
-                    case (func3_id[i]):
+                I_TYPE3: begin//ALU imm
+                    case (func3_id[i])
                         ADDI_FUNC3: //addi
                             alu_ctrl_id[i] = ADD_OP;
                         SLTI_FUNC3: //slti
@@ -169,12 +124,45 @@ module f_rat(
                             alu_ctrl_id[i] = OR_OP;
                         ANDI_FUNC3: //andi
                             alu_ctrl_id[i] = AND_OP;
+                        SR_I_FUNC3:     //just added : 101  for SRAI and SRLI
+                            alu_ctrl_id[i] = (func7_id[i] == 7'b0100000) ? SHIFT_R_ARITH_OP : SHIFT_R_LOGICAL_OP; //other case is 7'b0000000 
+                        SLLI_FUNC3: //slli
+                            alu_ctrl_id[i] = SHIFT_L_LOGICAL_OP;
                         default:
-                            alu_ctrl_id[i] = ADD_OP;
+                            alu_ctrl_id[i] = 'X;
                     endcase
+                end
+
+                S_TYPE: //sw //in OOO add is handled by L/S Unit
+                    alu_ctrl_id[i] = ADD_OP;
+                SB_TYPE: //branches  //need func3 to determine other operations in JEU //use func3 in RS
+                    alu_ctrl_id[i] = SUB_OP;
+                R_TYPE: begin // register ALU instruc
+                    case(func3_id[i])
+                        3'b000:   //add & SUB//***NOTE DID NOT CREATE CONSTANT -- CONSTANT SHOULD BE ZERO***
+                            alu_ctrl_id[i] = (func7_id[i] == 7'b0100000) ? SUB_OP : ADD_OP; //other case 7'b0000000
+                        SLL_FUNC3: //sll
+                            alu_ctrl_id[i] = SHIFT_L_LOGICAL_OP;
+                        SLT_FUNC3: //slt
+                            alu_ctrl_id[i] = LESS_THAN_OP;
+                        SLTU_FUNC3: //sltu
+                            alu_ctrl_id[i] = LESS_THAN_OP;
+                        XOR_FUNC3: //xor
+                            alu_ctrl_id[i] = XOR_OP;
+                        SR_FUNC3: //sra
+                            alu_ctrl_id[i] = (func7_id[i] == 7'b0100000) ? SHIFT_R_ARITH_OP : SHIFT_R_LOGICAL_OP;
+                        OR_FUNC3: //or
+                            alu_ctrl_id[i] = OR_OP;
+                        AND_FUNC3: //and
+                            alu_ctrl_id[i] = AND_OP;
+                        default:
+                            alu_ctrl_id[i] = 'X;
+                    endcase
+                end
 
                 default:
                     alu_ctrl_id[i] = ADD_OP;
+
             endcase
         end
     end
