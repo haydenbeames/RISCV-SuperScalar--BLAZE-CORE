@@ -1,60 +1,143 @@
 `timescale 1ns / 1ps
 
 /***************************************************************************
-* Module 	RSV
-* Filename: RSV.sv
+* 
+* Module:   rs
+* Filename: rs.sv
 *
 * Author: Hayden Beames
-* Date: 12/31/2022
+* Date: 4/27/2023
 *
 * Description: 
+*   Centralized Reservation chosen to reduce pipeline stalls.
+*       * Data for instructions is held in the RS to reduce # of read 
+*         ports to regfile 
+*               - this also results in lower latency on dispatch since  
+*                 retrieving rf data from dispatching instructions is not 
+*                 necessary
+*               - NOTE: this is less power efficient since will need
+*                       not only more area for the RS but more data will need  
+*                       to be written into RS  
+*                                -> # RS memory cells extra vs dispatch method = DATA_LEN * RS_NUM_ENTRIES 
+*                                    -prefer not to generate immediate data on dispatch since will need 
+*                                     to decode again which requires more instruction information so will 
+*                                     rs2 in reservation station
+*                       -retrieving from regfile on dispatch will  
+*                        not be explored further
+*
 ****************************************************************************/
 
 //include files
 `include "rtl_constants.sv"
+`include "decode_constants.sv"
+`include "riscv_alu_constants.sv"
+`include "macros.sv"
+`include "structs.sv"
 
-//Reservation Station for non MUL/DIV/SW/LW instructions
-module RSV (
+//Centralized Reservation Station for ALL Instruction types
+module rs (
 	input wire logic clk, rst, 
 	
-	//issue inputs
-	input wire logic [ISSUE_WIDTH_MAX-1:0] 		  instr_val_id,
-	input wire logic [ISSUE_WIDTH_MAX-1:0][31:0] instruction_id,
-	
-	//new instruction into RSV
-	input wire logic [CPU_NUM_LANES-1:0][5:0] 	  opcode_ar1,
-	input wire logic [CPU_NUM_LANES-1:0][5:0] 	  rd_ar1, //only for alu instr (figure out what to do for sw/lw operands)
-	input wire logic [CPU_NUM_LANES-1:0][31:0] 	  rs1_ar1, rs2_ar2,
-	input wire logic [ROB_SIZE_CLOG-1:0] rob_issue_ptr,
-	
+
 	//inputs from CDB
-	input wire logic [CPU_NUM_LANES-1:0][ROB_SIZE_CLOG-1:0] ROB_id_cdb,
+	input wire logic [CPU_NUM_LANES-1:0][ROB_SIZE_CLOG-1:0] robid_cdb,
 	input wire logic [CPU_NUM_LANES-1:0][5:0]  op_cdb,
 	input wire logic [CPU_NUM_LANES-1:0][4:0]  rd_tag_cdb,
 	input wire logic [CPU_NUM_LANES-1:0] 	   commit_instr_cdb,
 	input wire logic [CPU_NUM_LANES-1:0][31:0] result_data_cdb,
 	
-	//inputs from RAT
-	input wire logic read_RAT_rs1,
-	
-	//RSV OUTPUTS TO EXECUTION UNITS
-	output logic [CPU_NUM_LANES-1:0] 	   fullRSV,
-	output logic [CPU_NUM_LANES-1:0][31:0] rs1_rsv, rs2_rsv
-
+    //inputs from rob
+    input wire logic   rob_full,
+    
+    //outputs of f-rat
+    input wire logic [ISSUE_WIDTH_MAX-1:0][OPCODE_LEN-1:0] opcode_ar,
+    input wire logic [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1:0] rd_ar,
+    input wire logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_rdy_2_issue_ar,
+    input wire logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                  src_data_type_rdy_2_issue_ar, // 1: PRF, 0: ROB 
+    input wire logic [ISSUE_WIDTH_MAX-1:0] instr_val_ar,
+    input wire instr_info_t [ISSUE_WIDTH_MAX-1:0] instr_info_ar,
+    
+	//rs OUTPUTS TO EXECUTION UNITS
+	output logic 	   rs_full
 );
+/*
+	logic [ISSUE_WIDTH_MAX-1:0][RS_NUM_ENTRIES-1:0] free_rs_ety; 
+	logic [ISSUE_WIDTH_MAX-1:0][RS_NUM_ENTRIES_CLOG-1:0] free_rs_ety_idx;   //index into free rs slots for issuing instrucitons 
+    logic [RS_NUM_ENTRIES-1:0] inbuff_rs_valid_lsb, outbuff_rs_free_ety_lsb;
+	logic [RS_NUM_ENTRIES-1:0] inbuff_rs_valid_msb, outbuff_rs_free_ety_msb;
 
-	/////////////////////////////////////////////////////
-	// **DESIGN QUESTIONS TO CONSIDER**
-	//  
-	// -> should CDB send out more than one result? 
-	//	  if so, should it be same length as issue?
-	//
-	// 
+    initial begin
+        for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
+            rs[ety].op 	    = '0;
+			rs[ety].robid   = '0;
+			rs[ety].Q[RS_1] = '0;
+			rs[ety].Q[RS_2] = '0;
+			rs[ety].V[RS_1] = '0;
+			rs[ety].V[RS_2] = '0; 
+            rs[ety].fu_dest = '0;
+			rs[ety].busy 	=  0;
+            rs[ety].valid   =  1;
+        end
+    end
+    
+    always_comb begin
+        inbuff_rs_valid_lsb = 'X;
+		inbuff_rs_valid_msb = 'X;
+        for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
+            inbuff_rs_valid_lsb[ety] = rs[ety].valid;
+			inbuff_rs_valid_msb[ety] = rs[ety].valid;
+        end
+        for (int i = 0; i < (ISSUE_WIDTH_MAX/2); i++) begin
+            `ZERO_1ST_LSB(outbuff_rs_free_ety_lsb, inbuff_rs_valid_lsb);
+            free_rs_ety[i] = outbuff_rs_free_ety_lsb;
+            inbuff_rs_valid_lsb |= free_rs_ety[i];
+        end
+        for (int i = ISSUE_WIDTH_MAX-1; i >= (ISSUE_WIDTH_MAX/2); i--) begin
+            `ZERO_1ST_MSB(outbuff_rs_free_ety_msb, inbuff_rs_valid_msb)
+			free_rs_ety[i] = outbuff_rs_free_ety_msb;
+			inbuff_rs_valid_msb |= free_rs_ety[i];
+        end
+    end
+    
+    logic [RS_NUM_ENTRIES_CLOG :0] rs_occupancy;
+    always_comb begin
+        rs_occupancy = '0;
+        for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
+            rs_occupancy += rs[ety].valid;
+        end
+        rs_full = rs_occupancy > (RS_NUM_ENTRIES - ISSUE_WIDTH_MAX);
+    end
+    
+    
+    // ISSUE into RS flops 
+    always_ff@(posedge clk) begin 
+        for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin 
+            if (instr_val_ar[i] & ~rs_full) begin
+                rs[free_rs_ety[i]].op 	   <= opcode_ar[i];
+				rs[free_rs_ety[i]].robid   <= instr_info_ar[i].robid;
+
+            	rs[free_rs_ety[i]].fu_dest <= instr_info_ar[i].ctrl_sig.fu_dest;
+				rs[free_rs_ety[i]].busy    <=  0; //could we use this to reduce forwarding logic ?? check which fu?
+											      // and base on # of cycles to calculate? may be less expensive than comparisons
+            	rs[free_rs_ety[i]].valid   <=  1;
+				for (int s = 0; s < NUM_SRCS; s++) begin 
+					rs[free_rs_ety[i]].Q[s] <= instr_info_ar[i].ctrl_sig.alu_src 			  ? '0 :
+											   src_data_type_rdy_2_issue_ar[i][s] ? 'X/* rf */ /*: src_rdy_2_issue_ar[i][s];
+					rs[free_rs_ety[i]].V[s] <= instr_info_ar[i].ctrl_sig.alu_src 			  ?  instr_info_ar[i].imm :
+											   src_data_type_rdy_2_issue_ar[i][s] ? 32'hdeadbeef/* rf *//* : '0; //'0 since data from ROB not produced yet
+					rs[free_rs_ety[i]].imm  <= instr_info_ar[i].imm
+				end
+            end
+        end
+    end
+*/
+	//functional unit binding SM
+
 	
 	/////////////////////////////////////////////////////
 	// PIPELINE
 	// 
-	//   IF* | ID | IS | RSV | EX* | COM | RET
+	//   IF* | ID | IS | rs | EX* | COM | RET
 	//
 	// AR1: Rename and dispatch to ROB and IQ,
 	// COM: (commit) result from ex finished and sent to CDB and ROB
@@ -62,99 +145,46 @@ module RSV (
 	// EX varies based on lane, i.e. DIV & MUL take more cycles. 
 	// ALU Instruc take 1 cycle
 
-    // Only forwarding is from CDB
-
-	
-	////////////////////////////////////////
-	//
-	// AR1 PIPE STAGE
-	//
-	// write to RAT and ROB
-	//
-	// -check RAT for source operands
-	// -find spot to put issued instr into RSV
-	// -find source ops and dependencies in arr
-	//
-	////////////////////////////////////////
-	
-	typedef struct packed {
-		logic [5:0] op; 	//instruction opcode
-		logic [ROB_SIZE_CLOG:0] dst_tag;
-		logic [RAT_RENAME_DATA_WIDTH-1:0][NUM_SRCS-1:0] Q; //data location as specified from RAT //if zero, data already allocated
-		logic [31:0][NUM_SRCS-1:0] V; 	//value of src operands needed
-		logic busy; 	//indicated specified RSV and functional unit is occupied
-		logic valid; 	//info in RSV is valid
-      	//logic [$clog(MAX_MEM_ADDR)-1:0] A; //Used to hold information for the memory address calculation for a load
-		//or store. Initially, the immediate field of the instruction is stored here; after
-		//the address calculation, the effective address is stored here.
-	} RSV_t;
-	RSV_t [CPU_NUM_LANES-1:0][RSV_NUM_ENTRIES-1:0] entries;
-
+    // Only forwarding is from CDB 
+    
+	rs_t [RS_NUM_ENTRIES-1:0] rs;
+    /*
 	//Declare output signals
-	logic [CPU_NUM_LANES-1:0][RSV_NUM_ENTRIES-1:0][NUM_SRCS-1:0] match_src_dep;  //find src dependency match
-	logic [CPU_NUM_LANES-1:0][RSV_NUM_ENTRIES-1:0] ready_out;
-	logic [CPU_NUM_LANES-1:0][RSV_NUM_ENTRIES-1:0] rsv_ety_to_dispatch;
-	logic [CPU_NUM_LANES-1:0][RSV_NUM_ENTRIES-1:0] rsv_ety_rdy_to_dispatch;
+	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES-1:0][NUM_SRCS-1:0] match_src_dep;  //find src dependency match
+	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES-1:0] ready_out;
+	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES-1:0] rs_ety_to_dispatch;
+	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES-1:0] rs_ety_rdy_to_dispatch;
 	
 	//match src dependencies
 	always_comb begin
 		//on bdcst, check to see if source needed is bdcst dest. Also, if Qj or Qk = 0, src not neededs
 		match_src_dep = '{default:0};
 		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
-			for (int ety = 0; ety < RSV_NUM_ENTRIES; ety++) begin
+			for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
 				for (int cdb = 0; cdb < CDB_NUM_LANES; cdb++) begin
 				    for (int src = 0; src < NUM_SRCS; src++) begin
-					   match_src_dep[ln][ety][src] = (entries[ln][ety].valid & ((ROB_id_cdb[cdb] & commit_instr_cdb[cdb])== entries[ln][ety].Qj) & (entries[ln][ety].Q[src] != 0));
+					   match_src_dep[ln][ety][src] = (rs[ln][ety].valid & ((ROB_id_cdb[cdb] & commit_instr_cdb[cdb])== rs[ln][ety].Q) & (rs[ln][ety].Q[src] != 0));
 					end
 				end
 			end
 		end
 	end
+
 	
-	
-	////////////////////////////////////////////////////////////////////////////////
-	////// 
-	//////   GENERATE F-RAT (Front-End Register Alias Table)
-	//////  
-	////////////////////////////////////////////////////////////////////////////////
-	
-	logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1-1:0] src_renamed_is;
-	logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                            src_data_type_rat_is;
-	logic [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                ROB_id_is;
-	
-	f_RAT f_rat(.clk(clk), 
-	            .rst(rst),
-	            .instr_val_id(instr_val_id),
-	            .opcode_id(instruction_id[6:0]),
-	            .rd_id(    instruction_id[11:7]),
-	            .rs1_id(   instruction_id[19:15]),
-	            .rs2_id(   instruction_id[24:20]),
-	            .rob_issue_ptr(rob_issue_ptr),
-	            .src_renamed_is(src_renamed_is),
-	            .src_data_type_rat_is(src_data_type_rat_is),
-	            .ROB_id_is(ROB_id_is)
-	            );
-	            
-	////////////////////////////////////////////////////////////////////////////////
-	////// 
-	//////   GENERATE ROB (Re-Order Buffer)
-	//////  
-	////////////////////////////////////////////////////////////////////////////////
-	/*
-	//RSV update on CDB   //FIXME
+	//rs update on CDB   //FIXME
 	always_ff @(posedge clk) begin
 		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
-			for (int ety = 0; ety < RSV_NUM_ENTRIES; ety++) begin
+			for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
 				if (rst) begin
 					entries[ln][ety].op 	     <= opcode_ar1;
-					entries[ln][ety].dst_tag     <= ROB_id_ar1;
+					entries[ln][ety].robid     <= ROB_id_ar1;
 					entries[ln][ety][RS_1].Q 	 <= '0;
 					entries[ln][ety][RS_2].Q 	 <= '0;
 					entries[ln][ety][RS_1].V 	 <= '0;
 					entries[ln][ety][RS_2].V 	 <= '0;
 					entries[ln][ety].busy 	     <=  0;
 					entries[ln][ety].valid 	     <=  0; 
-				end else if (alloc_instr_rsv[ln][ety]) begin //lane determined by RSV availabilites, more likely to issue to more free RSV
+				end else if (alloc_instr_rs[ln][ety]) begin //lane determined by rs availabilites, more likely to issue to more free rs
 		            
 		            
 					entries[ln][ety][RS_2].Q <= low_1st_free_is[ln][ety] ? (loadInstruc || storeInstruc || ALUImmInstrucNoFuncS || ALUImmInstrucFuncS || LUI_ex) ?
@@ -163,73 +193,27 @@ module RSV (
 					
 	                
 	                entries[ln][ety].op 	 <= low_1st_free_is[ln][ety] ? opcode_ar1		: entries[ln][ety].op;
-					entries[ln][ety].dst_tag <= low_1st_free_ar1[ln][ety] ? ROB_id_ar1		: entries[ln][ety].dst_tag;
+					entries[ln][ety].robid <= low_1st_free_ar1[ln][ety] ? ROB_id_ar1		: entries[ln][ety].robid;
 	                entries[ln][ety].busy 	 <= low_1st_free_ar1[ln][ety] ? ;
 					entries[ln][ety].valid 	 <= low_1st_free_ar1[ln][ety] ? ;
 					
-					//if current ety, increase age, otherwise, if writing to RSV then set as youngest ety
+					//if current ety, increase age, otherwise, if writing to rs then set as youngest ety
 					entries[ln][ety].age 	 <= entries[ln][ety].valid    ? entries[ln][ety].age + 1'b1 : 
 												low_1st_free_ar1[ln][ety] ? 1'b1 : entries[ln][ety].age;
 				end else begin
-		        //update RSV from CDB based on match_src_dep
-				    for (int ety = 0; ety < RSV_NUM_ENTRIES; ety++) begin 
+		        //update rs from CDB based on match_src_dep
+				    for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin 
 				        for (int src = 0; src < NUM_SRCS; src++) begin
-					           //updating rsv src dep on bdcst matches
+					           //updating rs src dep on bdcst matches
 					           entries[ln][ety][src].Q <= match_src_dep[ln][ety][RS_1] ? 0 		 	  : entries[ln][ety][src].Q;
 					           entries[ln][ety][src].V <= match_src_dep[ln][ety][RS_1] ? result_data_cdb : entries[ln][ety][src].V;
 					   end
-					entries[ln][ety].dst_tag <= rob_issue_ptr_is;
-					//clear RSV on dispatch
+					entries[ln][ety].robid <= rob_issue_ptr_is;
+					//clear rs on dispatch
 				end
 			end
 		end
 	end
-	
-	//find RSV ETY to write to on ISSUE next cycle
-	///*FIRST ZERO ALGORITHM* -> finds first INVALID RSV
-	/// INPUT:   1101
-	/// Invert:  0010
-	/// INPUT+1: 1110
-	/// (INPUT+1)&(INVERT): 0010  **FAST FIRST ZERO DETECT**
-	
-	//logic [CPU_NUM_LANES-1:0] top_1st_free_is;
-	//logic [CPU_NUM_LANES-1:0] top_2nd_free_is;
-	logic [CPU_NUM_LANES-1:0] low_1st_free_is;
-	//logic [CPU_NUM_LANES-1:0] low_2nd_free_is;
-	
-	//could one hot to reduce power on ff
-	always_comb begin
-		//start from beginning to end
-		low_1st_free_is = '0;
-		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
-			low_1st_free_is[ln] = (RSV[ln].valid + 1'b1) & ~(RSV[ln].valid);
-		end
-		//start from end to beginning
-		//for (int ln = CPU_NUM_LANES-1; ln >= 0; ln--) begin
-			
-		//end
-	end
-
-	//CHOOSE RSV ENTRY TO DISPATCH
-	//if 2 ready, dispatch oldest ety
-	always_comb begin
-		rsv_ety_dispatch = '0;
-		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
-			for (int ety = 0; ety < RSV_NUM_ENTRIES; ety++) begin
-				rsv_ety_rdy_to_dispatch[ety] = (entries[ety].Qj == 0) & (entries[ety].Qk == 0) ? 1 : 0;
-			
-			end
-		end
-	end
-	
-	//full RSV?
-	always_comb begin
-		fullRSV = 0;
-		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
-			for (int i = 0; i < RSV_NUM_ENTRIES; i++) begin
-				fullRSV[ln] |= entries[ln][i].busy;	
-			end 
-		end
-	end
 	*/
+	
 endmodule 
