@@ -39,37 +39,29 @@
 `include "decode_constants.sv"
 `include "riscv_alu_constants.sv"
 `include "macros.sv"
-
-
+`include "structs.sv"
 
 module f_rat(
     input logic   clk, rst,
     input logic  [ISSUE_WIDTH_MAX-1:0] instr_val_id, //valid instr id
     input logic  [ISSUE_WIDTH_MAX-1:0][DATA_LEN-1:0] instr_id,
 
-
     //inputs from rob
     input logic  [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rob_is_ptr,
-//    input logic  [ROB_SIZE_CLOG-1:0] mispredict_tag_id,
-//    input logic   branch_clear_id,
     input logic   rob_full,
     //rob retire bus
-    input logic  [ROB_MAX_RETIRE-1:0][SRC_LEN-1:0] rd_ret,
-    input logic  [ROB_MAX_RETIRE-1:0]              val_ret,
-    input logic  [ROB_MAX_RETIRE-1:0]           branch_ret,
+    input logic  [ROB_MAX_RETIRE-1:0][SRC_LEN-1:0]          rd_ret,
+    input logic  [ROB_MAX_RETIRE-1:0]                      val_ret,
+    input logic  [ROB_MAX_RETIRE-1:0]                   branch_ret,  //sw also doesnt write !!!!! need signal -> generalize??? 
     input logic  [ROB_MAX_RETIRE-1:0][ROB_SIZE_CLOG-1:0] robid_ret,
     
     //outputs of f-rat
     output logic [ISSUE_WIDTH_MAX-1:0][OPCODE_LEN-1:0] opcode_ar,
-    output logic [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1:0] rd_ar,
+    output logic [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1:0]        rd_ar,
     output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_rdy_2_issue_ar,
     output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                  src_data_type_rdy_2_issue_ar, // 1: PRF, 0: ROB 
-    output logic [ISSUE_WIDTH_MAX-1:0][DATA_LEN-1:0] immGenOut_ar,
-    output logic [ISSUE_WIDTH_MAX-1:0]       instr_val_ar,
-    output logic [ISSUE_WIDTH_MAX-1:0][CPU_NUM_LANES-1:0] fu_ln_dest_ar,
-    output logic [ISSUE_WIDTH_MAX-1:0][ALU_CTRL_WIDTH-1:0] alu_ctrl_ar,
-    output logic [ISSUE_WIDTH_MAX-1:0]               instr_type_imm_ar, 
-    output logic [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]  robid_ar
+    output logic [ISSUE_WIDTH_MAX-1:0]      		instr_val_ar,
+    output instr_info_t [ISSUE_WIDTH_MAX-1:0] instr_info_ar
     );
 
     logic [ISSUE_WIDTH_MAX-1:0][OPCODE_LEN-1:0] opcode_id;
@@ -78,9 +70,6 @@ module f_rat(
     logic [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1   :0] rs2_id;
     logic [ISSUE_WIDTH_MAX-1:0][FUNC3_SIZE-1:0] func3_id;
     logic [ISSUE_WIDTH_MAX-1:0][FUNC7_SIZE-1:0] func7_id;
-    logic [ISSUE_WIDTH_MAX-1:0] instr_type_imm_id;
-    
-    logic [ISSUE_WIDTH_MAX-1:0][DATA_LEN-1:0] immGenOut_id, immGenOut_ar;
     
     logic [RETIRE_WIDTH_MAX-1:0]                                        rat_write_id;
     logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                     rat_port_data_id;
@@ -90,14 +79,11 @@ module f_rat(
     
 
     logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ar;
-    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_ar; // 1: PRF, 0: ROB
-    
-    logic [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] robid_id;
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_ar; // 1: PRF, 0: ROB 
     
     always_comb begin
-        robid_id = 'X;
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
-            robid_id[i] = rob_is_ptr[i];
+            instr_info_id[i].robid = rob_is_ptr[i];
         end
     end
 
@@ -106,6 +92,8 @@ module f_rat(
     // Decode/Immediate Gen Logic
     //
     /////////////////////////////////////////////////
+    
+    instr_info_t [ISSUE_WIDTH_MAX-1:0] instr_info_id;    
 
     always_comb begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
@@ -113,6 +101,10 @@ module f_rat(
             rd_id[i]     = instr_id[i][11:7];
             rs1_id[i]    = instr_id[i][19:15];
             rs2_id[i]    = instr_id[i][24:20];
+			func3_id[i]  = instr_id[i][14:12];
+			func7_id[i]  = instr_id[i][31:25];
+
+			instr_info_id[i].ctrl_sig.func3 = func3_id[i];
         end
     end
 
@@ -121,119 +113,154 @@ module f_rat(
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             case(opcode_id[i])
                 I_TYPE1:
-                    immGenOut_id[i] = {{20{instr_id[i][31]}}, instr_id[i][31:20]};
+                    instr_info_id[i].imm = {{20{instr_id[i][31]}}, instr_id[i][31:20]};
                 I_TYPE2: 
-                    immGenOut_id[i] = {{20{instr_id[i][31]}}, instr_id[i][31:20]};
+                    instr_info_id[i].imm = {{20{instr_id[i][31]}}, instr_id[i][31:20]};
                 I_TYPE3:
-                    immGenOut_id[i] = {{20{instr_id[i][31]}}, instr_id[i][31:20]};
+                    instr_info_id[i].imm = {{20{instr_id[i][31]}}, instr_id[i][31:20]};
                 S_TYPE:
-                    immGenOut_id[i] = {{20{instr_id[i][31]}}, instr_id[i][31:25], instr_id[i][11:7]};
+                    instr_info_id[i].imm = {{20{instr_id[i][31]}}, instr_id[i][31:25], instr_id[i][11:7]};
                 SB_TYPE: 
-                    immGenOut_id[i] = {{19{instr_id[i][31]}}, instr_id[i][31], instr_id[i][7],
+                    instr_info_id[i].imm = {{19{instr_id[i][31]}}, instr_id[i][31], instr_id[i][7],
                      instr_id[i][30:25], instr_id[i][12:8]};
                 U_TYPE1:
-                    immGenOut_id[i] = {instr_id[i][31:12],12'b0};
+                    instr_info_id[i].imm = {instr_id[i][31:12],12'b0};
                 U_TYPE2:
-                    immGenOut_id[i] = {{12{instr_id[i][31]}}, instr_id[i][31:12]};
+                    instr_info_id[i].imm = {{12{instr_id[i][31]}}, instr_id[i][31:12]};
                 J_TYPE:
-                    immGenOut_id[i] = {{12{instr_id[i][20]}}, instr_id[i][20], instr_id[i][10:1],
+                    instr_info_id[i].imm = {{12{instr_id[i][20]}}, instr_id[i][20], instr_id[i][10:1],
                      instr_id[i][11], instr_id[i][19:12]};
                 default:
-                    immGenOut_id[i] = DEFAULT_IMMEDIATE;
+                    instr_info_id[i].imm = DEFAULT_IMMEDIATE;
             endcase
         end
     end
     
-    logic [ISSUE_WIDTH_MAX-1:0][CPU_NUM_LANES-1:0] fu_ln_dest_id;
-    logic [ISSUE_WIDTH_MAX-1:0][ALU_CTRL_WIDTH-1:0] alu_ctrl_id;
-
+	
     always_comb begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             case(opcode_id[i])
                 I_TYPE1: begin //JALR
-                            instr_type_imm_id[i] = 1;
-                            fu_ln_dest_id[i] = BEU_LANE_MASK;
-                            alu_ctrl_id[i] = ADD_OP;
+                            instr_info_id[i].ctrl_sig.alu_src  = 1;
+                            instr_info_id[i].ctrl_sig.fu_dest  = BEU_LANE_MASK;
+                            instr_info_id[i].ctrl_sig.alu_ctrl = ADD_OP;
+							instr_info_id[i].ctrl_sig.memRead  = 0;
+							instr_info_id[i].ctrl_sig.memWrite = 0;
+							instr_info_id[i].ctrl_sig.rfWrite  = 1;
                          end
                 I_TYPE2: begin //lw
-                            instr_type_imm_id[i] = 1;
-                            fu_ln_dest_id[i] = MEU_LANE_MASK;
-                            alu_ctrl_id[i] = ADD_OP;
+                            instr_info_id[i].ctrl_sig.alu_src  = 1;
+                            instr_info_id[i].ctrl_sig.fu_dest  = MEU_LANE_MASK;
+                            instr_info_id[i].ctrl_sig.alu_ctrl = ADD_OP;
+							instr_info_id[i].ctrl_sig.memRead  = 1;
+							instr_info_id[i].ctrl_sig.memWrite = 0;
+							instr_info_id[i].ctrl_sig.rfWrite  = 1;
                          end
                 I_TYPE3: begin//ALU imm
-                    instr_type_imm_id[i] = 1;
-                    fu_ln_dest_id[i] = ALU_LANE_MASK;
-                    case (func3_id[i])
-                        ADDI_FUNC3: //addi
-                            alu_ctrl_id[i] = ADD_OP;
-                        SLTI_FUNC3: //slti
-                            alu_ctrl_id[i] = LESS_THAN_OP;
-                        SLTIU_FUNC3: //sltiu
-                            alu_ctrl_id[i] = LESS_THAN_OP;
-                        XORI_FUNC3: //xori
-                            alu_ctrl_id[i] = XOR_OP;
-                        ORI_FUNC3: //ori
-                            alu_ctrl_id[i] = OR_OP;
-                        ANDI_FUNC3: //andi
-                            alu_ctrl_id[i] = AND_OP;
-                        SR_I_FUNC3:     //just added : 101  for SRAI and SRLI
-                            alu_ctrl_id[i] = (func7_id[i] == 7'b0100000) ? SHIFT_R_ARITH_OP : SHIFT_R_LOGICAL_OP; //other case is 7'b0000000 
-                        SLLI_FUNC3: //slli
-                            alu_ctrl_id[i] = SHIFT_L_LOGICAL_OP;
-                        default:
-                            alu_ctrl_id[i] = 'X;
-                    endcase
-                end
-                U_TYPE1:
-                    instr_type_imm_id[i] = 1;
-                    //no functional unit destination, just put immediate in RF
-                    
-                U_TYPE2: begin
-                    instr_type_imm_id[i] = 1;
-                    fu_ln_dest_id[i] = BEU_LANE_MASK; //no ALU logic needed
-                    end
+                    		instr_info_id[i].ctrl_sig.alu_src  = 1;
+                    		instr_info_id[i].ctrl_sig.fu_dest  = ALU_LANE_MASK;
+							instr_info_id[i].ctrl_sig.memRead  = 0;
+							instr_info_id[i].ctrl_sig.memWrite = 0;
+							instr_info_id[i].ctrl_sig.rfWrite  = 1;
+                    		case (func3_id[i])
+                    		    ADDI_FUNC3: //addi
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = ADD_OP;
+                    		    SLTI_FUNC3: //slti
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = LESS_THAN_OP;
+                    		    SLTIU_FUNC3: //sltiu
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = LESS_THAN_OP;
+                    		    XORI_FUNC3: //xori
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = XOR_OP;
+                    		    ORI_FUNC3: //ori
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = OR_OP;
+                    		    ANDI_FUNC3: //andi
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = AND_OP;
+                    		    SR_I_FUNC3:     //just added : 101  for SRAI and SRLI
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = (func7_id[i] == 7'b0100000) ? SHIFT_R_ARITH_OP : SHIFT_R_LOGICAL_OP; //other case is 7'b0000000 
+                    		    SLLI_FUNC3: //slli
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = SHIFT_L_LOGICAL_OP;
+                    		    default:
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = 'X;
+                    		endcase
+                		end
+                U_TYPE1: begin	//LUI  //ALU op1 == 0;  just use immediate in op2 and store in rd
+                    		instr_info_id[i].ctrl_sig.alu_src  = 1;
+							instr_info_id[i].ctrl_sig.fu_dest  = ALU_LANE_MASK; //no ALU logic needed
+							instr_info_id[i].ctrl_sig.memRead  = 0;
+							instr_info_id[i].ctrl_sig.memWrite = 0;
+							instr_info_id[i].ctrl_sig.rfWrite  = 1;
+                    		//no functional unit destination, just put immediate in RF //DO I NEED CTRL SIGNAL??????
+						end
+                U_TYPE2: begin //AUIPC
+							   //add a 20-bit unsigned immediate value to the 20 most significant bits of the program counter (PC) and store the result in a register
+							   //op 1 PC, op2 immediate
+                    		instr_info_id[i].ctrl_sig.alu_src  = 1;
+                    		instr_info_id[i].ctrl_sig.fu_dest  = ALU_LANE_MASK; //no ALU logic needed
+							instr_info_id[i].ctrl_sig.memRead  = 0;
+							instr_info_id[i].ctrl_sig.memWrite = 0;
+							instr_info_id[i].ctrl_sig.rfWrite  = 1;
+                    	end
                 J_TYPE: begin
-                    instr_type_imm_id[i] = 1;
-                    fu_ln_dest_id[i] = BEU_LANE_MASK;
-                    end
+							//JAL WILL!!! write back since stores PC+4 into return address register but also jumps with immediate
+                    		instr_info_id[i].ctrl_sig.alu_src  = 1;
+                    		instr_info_id[i].ctrl_sig.fu_dest  = BEU_LANE_MASK;
+							instr_info_id[i].ctrl_sig.alu_ctrl = ADD_OP;
+							instr_info_id[i].ctrl_sig.memRead  = 0;
+							instr_info_id[i].ctrl_sig.memWrite = 0;
+							instr_info_id[i].ctrl_sig.rfWrite  = 1;
+                    	end
                 S_TYPE: begin//sw //in OOO add is handled by L/S Unit
-                            instr_type_imm_id[i] = 1;
-                            fu_ln_dest_id[i] = MEU_LANE_MASK;
-                            alu_ctrl_id[i] = ADD_OP;
+                            instr_info_id[i].ctrl_sig.alu_src  = 1;
+                            instr_info_id[i].ctrl_sig.fu_dest  = MEU_LANE_MASK;
+                            instr_info_id[i].ctrl_sig.alu_ctrl = ADD_OP;
+							instr_info_id[i].ctrl_sig.memRead  = 0;
+							instr_info_id[i].ctrl_sig.memWrite = 1;
+							instr_info_id[i].ctrl_sig.rfWrite  = 0;
                         end
                 SB_TYPE: begin //branches  //need func3 to determine other operations in JEU //use func3 in RS
-                            instr_type_imm_id[i] = 1;
-                            fu_ln_dest_id[i] = MEU_LANE_MASK;
-                            alu_ctrl_id[i] = SUB_OP;
+							// rs1, rs2, and an additional immediate -> this complicates RS
+                            instr_info_id[i].ctrl_sig.alu_src  = 0;
+                            instr_info_id[i].ctrl_sig.fu_dest  = MEU_LANE_MASK;
+                            instr_info_id[i].ctrl_sig.alu_ctrl = SUB_OP;
+							instr_info_id[i].ctrl_sig.memRead  = 0;
+							instr_info_id[i].ctrl_sig.memWrite = 0;
+							instr_info_id[i].ctrl_sig.rfWrite  = 0;
                          end
                 R_TYPE: begin // register ALU instruc
-                    fu_ln_dest_id[i] = ALU_LANE_MASK;
-                    case(func3_id[i])
-                        3'b000:   //add & SUB//***NOTE DID NOT CREATE CONSTANT -- CONSTANT SHOULD BE ZERO***
-                            alu_ctrl_id[i] = (func7_id[i] == 7'b0100000) ? SUB_OP : ADD_OP; //other case 7'b0000000
-                        SLL_FUNC3: //sll
-                            alu_ctrl_id[i] = SHIFT_L_LOGICAL_OP;
-                        SLT_FUNC3: //slt
-                            alu_ctrl_id[i] = LESS_THAN_OP;
-                        SLTU_FUNC3: //sltu
-                            alu_ctrl_id[i] = LESS_THAN_OP;
-                        XOR_FUNC3: //xor
-                            alu_ctrl_id[i] = XOR_OP;
-                        SR_FUNC3: //sra
-                            alu_ctrl_id[i] = (func7_id[i] == 7'b0100000) ? SHIFT_R_ARITH_OP : SHIFT_R_LOGICAL_OP;
-                        OR_FUNC3: //or
-                            alu_ctrl_id[i] = OR_OP;
-                        AND_FUNC3: //and
-                            alu_ctrl_id[i] = AND_OP;
-                        default:
-                            alu_ctrl_id[i] = 'X;
-                    endcase
+							instr_info_id[i].ctrl_sig.alu_src  = 0;
+                    		instr_info_id[i].ctrl_sig.fu_dest  = ALU_LANE_MASK;
+							instr_info_id[i].ctrl_sig.memRead  = 0;
+							instr_info_id[i].ctrl_sig.memWrite = 0;
+							instr_info_id[i].ctrl_sig.rfWrite  = 1;
+                    		case(func3_id[i])
+                    		    3'b000:   //add & SUB//***NOTE DID NOT CREATE CONSTANT -- CONSTANT SHOULD BE ZERO***
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = (func7_id[i] == 7'b0100000) ? SUB_OP : ADD_OP; //other case 7'b0000000
+                    		    SLL_FUNC3: //sll
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = SHIFT_L_LOGICAL_OP;
+                    		    SLT_FUNC3: //slt
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = LESS_THAN_OP;
+                    		    SLTU_FUNC3: //sltu
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = LESS_THAN_OP;
+                    		    XOR_FUNC3: //xor
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = XOR_OP;
+                    		    SR_FUNC3: //sra
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = (func7_id[i] == 7'b0100000) ? SHIFT_R_ARITH_OP : SHIFT_R_LOGICAL_OP;
+                    		    OR_FUNC3: //or
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = OR_OP;
+                    		    AND_FUNC3: //and
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = AND_OP;
+                    		    default:
+                    		        instr_info_id[i].ctrl_sig.alu_ctrl = 'X;
+                    		endcase
                 end
 
                 default: begin
-                            instr_type_imm_id[i] = 'X;
-                            fu_ln_dest_id[i] = 'X;
-                            alu_ctrl_id[i] = 'X;
+                            instr_info_id[i].ctrl_sig.alu_src  = 'X;
+                            instr_info_id[i].ctrl_sig.fu_dest  = 'X;
+                            instr_info_id[i].ctrl_sig.alu_ctrl = 'X;
+							instr_info_id[i].ctrl_sig.memRead  = 'X;
+							instr_info_id[i].ctrl_sig.memWrite = 'X;
+							instr_info_id[i].ctrl_sig.rfWrite  = 'X;
                          end
 
             endcase
@@ -304,7 +331,8 @@ module f_rat(
                 end
             end
         end  
-               
+        
+        //may want to put this logic in retirement
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin  //write port in question
             for (int j = ISSUE_WIDTH_MAX; j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin //comparison to other write ports
                 if (j != i)
@@ -334,19 +362,6 @@ module f_rat(
         end
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
             rat_write_id[i] = ~rat_w_qual_id[i+ISSUE_WIDTH_MAX] & ret_w_val_id[i] & ~rob_full;
-        end
-    end
-    
-    always_comb begin
-        rat_port_data_id[0] = instr_val_id[0] ? rob_is_ptr[0] : rd_ret[0];
-        rat_port_data_id[1] = instr_val_id[1] ? (instr_val_id[0] ? rob_is_ptr[1] : rob_is_ptr[0]) : rd_ret[1];
-
-        rat_port_addr_id[0] = instr_val_id[0] ? rd_id[0] : rd_ret[0];
-        rat_port_addr_id[1] = instr_val_id[1] ? rd_id[1] : rd_ret[1];
-
-        for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
-            rat_port_data_id[i] = rd_ret[i]; //MAY BE LESS CDYN BY JUST RESETTING rat.rf
-            rat_port_addr_id[i] = rd_ret[i];
         end
     end
     
@@ -387,30 +402,22 @@ module f_rat(
     
     always_ff@(posedge clk) begin
         if (rst) begin
-            ret_val_ar   <= '0;
-            robid_ret_ar <= '{default:0};
-            instr_val_ar <= '0;
-            rd_ret_ar    <= '0;
-            immGenOut_ar <= '0;
+            instr_info_ar   <= '0;
+            ret_val_ar   	<= '0;
+            robid_ret_ar 	<= '{default:0};
+            instr_val_ar 	<= '0;
+            rd_ret_ar    	<= '0;
             src_original_ar <= '0;
-            opcode_ar    <= '0;
-            rd_ar        <= '0;
-            robid_ar     <= '0;
-            fu_ln_dest_ar <= '0;
-            alu_ctrl_ar   <= '0;
-            instr_type_imm_id <= '0;
+            opcode_ar    	<= '0;
+            rd_ar        	<= '0;
         end else begin
-            ret_val_ar   <= ret_w_val_id;
-            robid_ret_ar <= robid_ret;
-            instr_val_ar <= instr_val_id;
-            rd_ret_ar    <= rd_ret;
-            immGenOut_ar <= immGenOut_id;
-            opcode_ar    <= opcode_id;
-            rd_ar        <= rd_id;
-            robid_ar     <= robid_id;
-            fu_ln_dest_ar <= fu_ln_dest_id;
-            alu_ctrl_ar   <= alu_ctrl_id;
-            instr_type_imm_ar <= instr_type_imm_id;
+            instr_info_ar <= instr_info_id;
+            ret_val_ar    <= ret_w_val_id;
+            robid_ret_ar  <= robid_ret;
+            instr_val_ar  <= instr_val_id;
+            rd_ret_ar     <= rd_ret;
+            opcode_ar     <= opcode_id;
+            rd_ar         <= rd_id;
             for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
                 src_original_ar[i][RS_1] <= rs1_id[i];
                 src_original_ar[i][RS_2] <= rs2_id[i];
@@ -477,6 +484,7 @@ module f_rat(
         end
     end
     
+	//encode into index
     always_comb begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             for (int s = 0; s < NUM_SRCS; s++) begin
@@ -489,17 +497,17 @@ module f_rat(
                 ret_ovrd_dep_mtx_onehot_ar[i][s] = outbuff_ret_ovrd_dep_ar_onehot;
             end  
         end
-
     end
+
     //generate final src renamed with false dependencies removed
     always_comb begin
         src_rdy_2_issue_ar = '{default:0};
         src_data_type_rdy_2_issue_ar = '{default:0};
         for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin
             for (int s = 0; s < NUM_SRCS; s++) begin
-                src_rdy_2_issue_ar[i][s] =           |src_dep_ovrd_mtx_qual_1st_ar[i][s] ? robid_ar[src_dep_ovrd_mtx_one_hot_ar[i][s]] :
-                                                     |ret_ovrd_dep_mtx_id[i][s]          ? rd_ret[   ret_ovrd_dep_mtx_onehot_id[i][s]] :
-                                                     |ret_ovrd_dep_mtx_ar[i][s]          ? rd_ret_ar[ret_ovrd_dep_mtx_onehot_ar[i][s]] :
+                src_rdy_2_issue_ar[i][s] =           |src_dep_ovrd_mtx_qual_1st_ar[i][s] ? instr_info_ar[src_dep_ovrd_mtx_one_hot_ar[i][s]].robid :
+                                                     |ret_ovrd_dep_mtx_id[i][s]          ? rd_ret[        ret_ovrd_dep_mtx_onehot_id[i][s]] :
+                                                     |ret_ovrd_dep_mtx_ar[i][s]          ? rd_ret_ar[     ret_ovrd_dep_mtx_onehot_ar[i][s]] :
                                                            src_renamed_ar[i][s];
                                                 
                 src_data_type_rdy_2_issue_ar[i][s] = |src_dep_ovrd_mtx_qual_1st_ar[i][s] ? ROB_DATA_TYPE :
