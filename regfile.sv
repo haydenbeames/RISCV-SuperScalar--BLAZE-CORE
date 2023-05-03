@@ -70,7 +70,7 @@ module regfile(
         end
     end
 
-    // generfe write enables rf
+    // generate write enables rf
     always_comb begin
         for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
             rf_write_en[i] = ~rf_w_qual[i] & w_val_ret[i];
@@ -90,6 +90,7 @@ module regfile(
 
     logic [NUM_RF_R_PORTS-1:0] r_val_ar;
     logic [NUM_RF_R_PORTS-1:0] rf_r_qual;
+    logic [NUM_RF_R_PORTS-1:0] rf_read_en;
     logic [NUM_RF_R_PORTS-1:0][NUM_RF_R_PORTS-1:0] rf_ar_read_conflict_mtx;
 
     always_comb begin
@@ -114,9 +115,13 @@ module regfile(
         end
     end
 
-    always_comb begin  
-
+    // generate read enables rf
+    always_comb begin
+        for (int i = 0; i < NUM_RF_R_PORTS; i++) begin
+            rf_write_en[i] = ~rf_r_qual[i] & r_val_ar[i];
+        end
     end
+    ///////////////////////////////////////////////////////////
 
 
     //multiported register file logic
@@ -129,8 +134,9 @@ module regfile(
         end
 
         //read ports
-        for (int r = 0; r < NUM_RF_R_PORTS; r++) begin 
-            rf_r_port_data[r] = register[rf_r_port_addr[r]];
+        for (int r = 0; r < NUM_RF_R_PORTS; r++) begin
+            if(rf_read_en[r])
+                rf_r_port_data[r] = register[rf_r_port_addr[r]];
         end  
     end
     
