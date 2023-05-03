@@ -1,3 +1,5 @@
+
+
 `timescale 1ns / 1ps
 
 //include files
@@ -22,17 +24,17 @@ module rob_hb(
     output logic [ROB_MAX_RETIRE-1:0][SRC_LEN-1:0]     rd_ret,
     output logic [ROB_MAX_RETIRE-1:0][DATA_LEN-1:0]    pc_ret,
     output logic [ROB_MAX_RETIRE-1:0]                 val_ret,
-    output logic [ROB_MAX_RETIRE-1:0]              branch_ret,  //fill in later     
+    output logic [ROB_MAX_RETIRE-1:0]              branch_ret,  //fill in later    
+    output logic [ROB_MAX_RETIRE-1:0][ROB_SIZE_CLOG-1:0] robid_ret,
     output logic [ROB_SIZE_CLOG-1:0] ret_ptr, //to R-RAT
     
-    //output to F_RAT
-    output logic [ROB_SIZE_CLOG-1:0] is_ptr //d1 -> delayed one cycle
+    output logic rob_full,
     
+    //output to F_RAT
+    output logic [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] is_ptr //all issue ptrs to rob
     );
     
-    logic rob_full;
     logic [ROB_SIZE_CLOG  :0] rob_occupancy;
-    logic [ROB_SIZE_CLOG-1:0] is_ptr_p1;
     
     logic [ROB_MAX_RETIRE_CLOG:0] num_instr_2_ret;
     logic                         num_ret_qual;
@@ -44,7 +46,7 @@ module rob_hb(
         logic [31:0] data; //branch should just use data to take of pc
         logic        v;
         logic        done;
-        logic        PCSrc;
+        logic        memToReg;
         
     } rob_t;
     rob_t [ROB_SIZE-1:0] rob;
@@ -65,43 +67,49 @@ module rob_hb(
     always_ff@(posedge clk) begin
         case (instr_val_id & ~{rob_full,rob_full}) // & ~rob_full
             (2'b01): begin
-                rob[is_ptr].op   <= op_id[0];
-                rob[is_ptr].rd   <= rd_id[0];
-                rob[is_ptr].pc   <= pc_id[0];
-                rob[is_ptr].v    <= 1;
-                rob[is_ptr].done <= 0;
+                rob[is_ptr[0]].op   <= op_id[0];
+                rob[is_ptr[0]].rd   <= rd_id[0];
+                rob[is_ptr[0]].pc   <= pc_id[0];
+                rob[is_ptr[0]].v    <= 1;
+                rob[is_ptr[0]].done <= 0;
 
-                is_ptr <= is_ptr + 1;
+                is_ptr[0] <= is_ptr[0] + 1;
             end
             (2'b10): begin
-                rob[is_ptr].op   <= op_id[1];
-                rob[is_ptr].rd   <= rd_id[1];
-                rob[is_ptr].pc   <= pc_id[1];
-                rob[is_ptr].v    <= 1;
-                rob[is_ptr].done <= 0;  
+                rob[is_ptr[0]].op   <= op_id[1];
+                rob[is_ptr[0]].rd   <= rd_id[1];
+                rob[is_ptr[0]].pc   <= pc_id[1];
+                rob[is_ptr[0]].v    <= 1;
+                rob[is_ptr[0]].done <= 0;  
 
-                is_ptr <= is_ptr + 1;      
+                is_ptr[0] <= is_ptr[0] + 1;      
             end
             (2'b11): begin
-                rob[is_ptr   ].op   <= op_id[0];
-                rob[is_ptr   ].rd   <= rd_id[0];
-                rob[is_ptr   ].pc   <= pc_id[0];
-                rob[is_ptr   ].v    <= 1;
-                rob[is_ptr   ].done <= 0;
+                rob[is_ptr[0]].op   <= op_id[0];
+                rob[is_ptr[0]].rd   <= rd_id[0];
+                rob[is_ptr[0]].pc   <= pc_id[0];
+                rob[is_ptr[0]].v    <= 1;
+                rob[is_ptr[0]].done <= 0;
                 
-                rob[is_ptr_p1].op   <= op_id[1];
-                rob[is_ptr_p1].rd   <= rd_id[1];
-                rob[is_ptr_p1].pc   <= pc_id[1];
-                rob[is_ptr_p1].v    <= 1;
-                rob[is_ptr_p1].done <= 0;
-
-                is_ptr <= is_ptr + 2;
+                rob[is_ptr[1]].op   <= op_id[1];
+                rob[is_ptr[1]].rd   <= rd_id[1];
+                rob[is_ptr[1]].pc   <= pc_id[1];
+                rob[is_ptr[1]].v    <= 1;
+                rob[is_ptr[1]].done <= 0;
+                
+                is_ptr[0] <= is_ptr[0] + 2;
             end
             default: begin end
         endcase
     end
     
-    assign is_ptr_p1 = is_ptr + 1;
+    //assign is_ptr[1] = is_ptr + 1;
+
+    always_comb begin
+        for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin
+            is_ptr[i] = is_ptr[0] + i;
+        end
+    end
     
     //commit instr to rob 
     always_ff@(posedge clk) begin
@@ -158,7 +166,7 @@ module rob_hb(
         rob_occupancy = '0;
         for (int i = 0; i < ROB_SIZE; i++)
             rob_occupancy += rob[i].v;
-        rob_full = (rob_occupancy > (ROB_SIZE - 2));
+        rob_full = rob_occupancy > (ROB_SIZE - ISSUE_WIDTH_MAX);   //RE-CHECK THIS!!  **************
     end
     
 endmodule
