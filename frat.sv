@@ -383,7 +383,7 @@ module f_rat(
     // write ports to FRAT
     always_ff@(posedge clk) begin
         for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
-            if (rat_write_id[i]) begin
+            if (rat_write_id[i] & (rat_port_addr_id[i] != 0)) begin
                 rat[rat_port_addr_id[i]].table_data <= rat_port_data_id[i];
                 rat[rat_port_addr_id[i]].rf         <= val_ret[i] ? 1 : 0; //change to constants  //FIX ME * WRONG PRIORITY*
             end
