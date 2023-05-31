@@ -47,36 +47,41 @@ module rs (
 	input wire logic [CPU_NUM_LANES-1:0][31:0] result_data_cdb,
 	
     //inputs from rob
-    input wire logic   rob_full,
+    input wire logic rob_full,
+
+    //inputs from regfile
+    input wire logic [NUM_RF_R_PORTS-1:0][DATA_LEN-1:0] rf_r_port_data,
     
-    //outputs of f-rat
+    //inputs from f-rat
     input wire logic [ISSUE_WIDTH_MAX-1:0][OPCODE_LEN-1:0] opcode_ar,
     input wire logic [ISSUE_WIDTH_MAX-1:0][SRC_LEN-1:0] rd_ar,
     input wire logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_rdy_2_issue_ar,
     input wire logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                  src_data_type_rdy_2_issue_ar, // 1: PRF, 0: ROB 
     input wire logic [ISSUE_WIDTH_MAX-1:0] instr_val_ar,
     input wire instr_info_t [ISSUE_WIDTH_MAX-1:0] instr_info_ar,
+
+	//inputs from functional units
+	input wire logic [CPU_NUM_LANES-1:0] fu_free, fu_free_1c, //fu_free_1c means fu free in 1 cycle
     
 	//rs OUTPUTS TO EXECUTION UNITS
+	output alu_lane_t [NUM_ALU_LANES-1:0] alu_lane_info_ex1,
 	output logic 	   rs_full
 );
-/*
-	logic [ISSUE_WIDTH_MAX-1:0][RS_NUM_ENTRIES-1:0] free_rs_ety; 
-	logic [ISSUE_WIDTH_MAX-1:0][RS_NUM_ENTRIES_CLOG-1:0] free_rs_ety_idx;   //index into free rs slots for issuing instrucitons 
+
+    rs_t [RS_NUM_ENTRIES-1:0] rs;
+    
+    logic [ISSUE_WIDTH_MAX-1:0][CPU_NUM_LANES-1:0] fu_dest_qual_ar;
+    
+	logic [ISSUE_WIDTH_MAX-1:0][RS_NUM_ENTRIES-1:0] free_rs_ety_onehot; 
+	logic [ISSUE_WIDTH_MAX-1:0][RS_NUM_ENTRIES_CLOG-1:0] free_rs_ety;   //index into free rs slots for issuing instrucitons 
     logic [RS_NUM_ENTRIES-1:0] inbuff_rs_valid_lsb, outbuff_rs_free_ety_lsb;
 	logic [RS_NUM_ENTRIES-1:0] inbuff_rs_valid_msb, outbuff_rs_free_ety_msb;
+	logic [RS_NUM_ENTRIES-1:0] inbuff_rs_free_ety_enc;
+	logic [RS_NUM_ENTRIES_CLOG-1:0] outbuff_rs_free_ety_enc;
 
     initial begin
         for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
-            rs[ety].op 	    = '0;
-			rs[ety].robid   = '0;
-			rs[ety].Q[RS_1] = '0;
-			rs[ety].Q[RS_2] = '0;
-			rs[ety].V[RS_1] = '0;
-			rs[ety].V[RS_2] = '0; 
-            rs[ety].fu_dest = '0;
-			rs[ety].busy 	=  0;
-            rs[ety].valid   =  1;
+            rs[ety] = '{default:0};
         end
     end
     
@@ -89,14 +94,20 @@ module rs (
         end
         for (int i = 0; i < (ISSUE_WIDTH_MAX/2); i++) begin
             `ZERO_1ST_LSB(outbuff_rs_free_ety_lsb, inbuff_rs_valid_lsb);
-            free_rs_ety[i] = outbuff_rs_free_ety_lsb;
-            inbuff_rs_valid_lsb |= free_rs_ety[i];
+            free_rs_ety_onehot[i] = outbuff_rs_free_ety_lsb;
+            inbuff_rs_valid_lsb |= free_rs_ety_onehot[i];
         end
         for (int i = ISSUE_WIDTH_MAX-1; i >= (ISSUE_WIDTH_MAX/2); i--) begin
             `ZERO_1ST_MSB(outbuff_rs_free_ety_msb, inbuff_rs_valid_msb)
-			free_rs_ety[i] = outbuff_rs_free_ety_msb;
-			inbuff_rs_valid_msb |= free_rs_ety[i];
+			free_rs_ety_onehot[i] = outbuff_rs_free_ety_msb;
+			inbuff_rs_valid_msb |= free_rs_ety_onehot[i];
         end
+
+		for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin 
+			inbuff_rs_free_ety_enc = free_rs_ety_onehot[i];
+			`ONE_HOT_ENCODE(outbuff_rs_free_ety_enc, inbuff_rs_free_ety_enc)
+			free_rs_ety[i] = outbuff_rs_free_ety_enc;
+		end
     end
     
     logic [RS_NUM_ENTRIES_CLOG :0] rs_occupancy;
@@ -108,36 +119,176 @@ module rs (
         rs_full = rs_occupancy > (RS_NUM_ENTRIES - ISSUE_WIDTH_MAX);
     end
     
-    
     // ISSUE into RS flops 
     always_ff@(posedge clk) begin 
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin 
             if (instr_val_ar[i] & ~rs_full) begin
                 rs[free_rs_ety[i]].op 	   <= opcode_ar[i];
 				rs[free_rs_ety[i]].robid   <= instr_info_ar[i].robid;
-
-            	rs[free_rs_ety[i]].fu_dest <= instr_info_ar[i].ctrl_sig.fu_dest;
-				rs[free_rs_ety[i]].busy    <=  0; //could we use this to reduce forwarding logic ?? check which fu?
-											      // and base on # of cycles to calculate? may be less expensive than comparisons
+				rs[free_rs_ety[i]].rd      <= rd_ar[i];
             	rs[free_rs_ety[i]].valid   <=  1;
+                rs[free_rs_ety[i]].ctrl_sig.alu_ctrl <= instr_info_ar[  i].ctrl_sig.alu_ctrl;
+                rs[free_rs_ety[i]].ctrl_sig.fu_dest  <= fu_dest_qual_ar[i];
+            	rs[free_rs_ety[i]].ctrl_sig.func3    <= instr_info_ar[  i].ctrl_sig.func3;
 				for (int s = 0; s < NUM_SRCS; s++) begin 
-					rs[free_rs_ety[i]].Q[s] <= instr_info_ar[i].ctrl_sig.alu_src 			  ? '0 :
-											   src_data_type_rdy_2_issue_ar[i][s] ? 'X/* rf */ /*: src_rdy_2_issue_ar[i][s];
-					rs[free_rs_ety[i]].V[s] <= instr_info_ar[i].ctrl_sig.alu_src 			  ?  instr_info_ar[i].imm :
-											   src_data_type_rdy_2_issue_ar[i][s] ? 32'hdeadbeef/* rf *//* : '0; //'0 since data from ROB not produced yet
-					rs[free_rs_ety[i]].imm  <= instr_info_ar[i].imm
+					rs[free_rs_ety[i]].Q[s] <= src_data_type_rdy_2_issue_ar[i][s] ? 0 : instr_info_ar[i].robid;
+					rs[free_rs_ety[i]].V[s] <= src_data_type_rdy_2_issue_ar[i][s] ? rf_r_port_data[i*NUM_SRCS+s] : 0;
+					rs[free_rs_ety[i]].imm  <= instr_info_ar[i].ctrl_sig.alu_src  ? instr_info_ar[i].imm : 0;
 				end
             end
         end
     end
-*/
+    
+    fu_dest_t  [ISSUE_WIDTH_MAX-1:0] fu_dest_cs = '{default:0}; //current state
+    fu_dest_t  [ISSUE_WIDTH_MAX-1:0] fu_dest_ns = '{default:0}; //next state
+    lane_cnt_t [ISSUE_WIDTH_MAX-1:0] lane_count = '{default:0};
+    
+    logic [ISSUE_WIDTH_MAX-1:0] fu_1_state_TEST;
+    logic [CPU_NUM_LANES-1:0] inbuff_1_1st_fu_dest_ar, outbuff_1_1st_fu_dest_ar;
+    
+    always_ff@(posedge clk) begin
+        if (rst) begin
+            for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
+                //fu_dest_cs[i].alu <= ALU_LANE_MASK;
+                //fu_dest_ns[i].alu <= ALU_LANE_MASK;
+            end
+        end else begin
+            fu_dest_cs <= fu_dest_ns;
+        end
+    end
+    
 	//functional unit binding SM
-
+	//add more units later
+	always_comb begin
+        fu_dest_qual_ar = '0;
+        fu_1_state_TEST = '0;
+        lane_count = '{default:0};
+        for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
+            fu_dest_ns[i].alu = ALU_LANE_MASK;
+	    	case (instr_info_ar[i].ctrl_sig.fu_dest)
+	    	    ALU_LANE_MASK: begin 
+	    	        for (int ln = 0; ln < CPU_NUM_LANES ; ln++)
+	    	            lane_count[i].alu += fu_dest_cs[i].alu[ln];
+	    	            
+	    	        if ($unsigned(lane_count[i].alu) > 1) begin
+	    	             inbuff_1_1st_fu_dest_ar = fu_dest_cs[i].alu;
+	    	            `ONE_1ST_LSB(outbuff_1_1st_fu_dest_ar, inbuff_1_1st_fu_dest_ar);
+	    	            fu_dest_qual_ar[i] = outbuff_1_1st_fu_dest_ar;
+	    	            fu_dest_ns[i].alu &= ~fu_dest_qual_ar[i];
+	    	        end else begin
+	    	            fu_dest_qual_ar[i] = fu_dest_cs[i].alu;
+	    	            fu_dest_ns[i].alu = ALU_LANE_MASK;
+	    	            fu_1_state_TEST[i] = 1;
+	    	        end
+	    	    end
+	    	endcase
+		end
+	end
 	
+	
+	////////////////////////////////////////////
+	////
+	//// DISPATCH LOGIC
+	////
+	////////////////////////////////////////////
+	
+	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES-1:0] rdy_2_disp_rs;
+	
+	//ety ready to dispatch logic
+	always_comb begin
+		rdy_2_disp_rs = '{default:0};
+		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
+	   		for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
+	   		    rdy_2_disp_rs[ln][ety] = rs[ety].valid & (rs[ety].Q[RS_1] == 0) & (rs[ety].Q[RS_2] == 0) & rs[ety].ctrl_sig.fu_dest[ln];
+	   		end
+		end
+	end
+
+	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES-1:0] rdy_2_disp_fu_qual_rs;
+    logic [CPU_NUM_LANES-1:0] any_rdy_2_disp_qual_rs;
+	//qualify with fu ready status
+	always_comb begin
+		rdy_2_disp_fu_qual_rs = '{default:0};
+		any_rdy_2_disp_qual_rs = '0;
+		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
+	   		for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
+				rdy_2_disp_fu_qual_rs[ ln][ety] = rdy_2_disp_rs[ln][ety] & (fu_free[ln] | fu_free_1c[ln]); //if fu free | fu free in 1 cycle
+			    any_rdy_2_disp_qual_rs[ln]     |= rdy_2_disp_fu_qual_rs[ln][ety];
+			end 
+		end
+	end
+
+	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES-1:0] disp_fu_1st_1_rs;
+
+	//if there is more than one instruction in rs ready to dispatch to same fu as another instruction, grab first one
+	//this implementation does not use instruction age in order to reduce area and logic complexity
+	//may be some slight performance degredation on certain cases
+	always_comb begin 
+		disp_fu_1st_1_rs = '{default:0};
+		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
+	   		for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin	   		     
+				`ONE_1ST_LSB(disp_fu_1st_1_rs[ln], rdy_2_disp_fu_qual_rs[ln]);
+			end 
+		end
+	end
+	
+	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES-1:0] instruc_2_disp_fu_rs;
+
+	//pre encoded instruction 2 dispatch (just take transpose again) -> no logic delay
+	always_comb begin
+		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
+	   		for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin 
+				instruc_2_disp_fu_rs[ln][ety] = disp_fu_1st_1_rs[ln][ety];
+			end 
+		end
+	end
+	
+
+
+	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES_CLOG-1:0] fu_disp_enc_rs; //final encoding 
+
+	//one hot encoding to give index of isntruction in rs to dispatch to corresponding fu
+	always_comb begin 
+		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
+			`ONE_HOT_ENCODE(fu_disp_enc_rs[ln], instruc_2_disp_fu_rs[ln]);
+		end 
+	end
+	
+	
+	/////////////////////////////////////////////////
+	///
+	/// ASSIGN RDY_2_DISP INSTRUCTION IN RS TO FU
+	///
+	/////////////////////////////////////////////////
+	
+	
+	
+	logic [CPU_NUM_LANES-1:0] testALU_MASK;
+	
+	always_ff@(posedge clk) begin 
+	   testALU_MASK = '0;
+	   for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin 
+			if (ALU_LANE_MASK[ln]) begin
+			     testALU_MASK[ln] = 1;
+				if (any_rdy_2_disp_qual_rs[ln]) begin 
+					alu_lane_info_ex1[ln-ALU_LN_OFFSET].src[RS_1] <= rs[fu_disp_enc_rs[ln]].V[RS_1];
+					alu_lane_info_ex1[ln-ALU_LN_OFFSET].src[RS_2] <= rs[fu_disp_enc_rs[ln]].V[RS_2];
+					alu_lane_info_ex1[ln-ALU_LN_OFFSET].op        <= rs[fu_disp_enc_rs[ln]].ctrl_sig.alu_src ? rs[fu_disp_enc_rs[ln]].imm : 
+																									           rs[fu_disp_enc_rs[ln]].V[RS_2];
+					alu_lane_info_ex1[ln-ALU_LN_OFFSET].robid 	  <= rs[fu_disp_enc_rs[ln]].robid;
+					alu_lane_info_ex1[ln-ALU_LN_OFFSET].alu_ctrl  <= rs[fu_disp_enc_rs[ln]].ctrl_sig.alu_ctrl;
+				end 
+			end 
+
+	   	end	
+	end
+
+    
+
 	/////////////////////////////////////////////////////
 	// PIPELINE
 	// 
-	//   IF* | ID | IS | rs | EX* | COM | RET
+	//   IF* | ID | AR | RS | EX* | COM | RET
 	//
 	// AR1: Rename and dispatch to ROB and IQ,
 	// COM: (commit) result from ex finished and sent to CDB and ROB
@@ -145,9 +296,6 @@ module rs (
 	// EX varies based on lane, i.e. DIV & MUL take more cycles. 
 	// ALU Instruc take 1 cycle
 
-    // Only forwarding is from CDB 
-    
-	rs_t [RS_NUM_ENTRIES-1:0] rs;
     /*
 	//Declare output signals
 	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES-1:0][NUM_SRCS-1:0] match_src_dep;  //find src dependency match
@@ -169,51 +317,6 @@ module rs (
 			end
 		end
 	end
-
-	
-	//rs update on CDB   //FIXME
-	always_ff @(posedge clk) begin
-		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
-			for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
-				if (rst) begin
-					entries[ln][ety].op 	     <= opcode_ar1;
-					entries[ln][ety].robid     <= ROB_id_ar1;
-					entries[ln][ety][RS_1].Q 	 <= '0;
-					entries[ln][ety][RS_2].Q 	 <= '0;
-					entries[ln][ety][RS_1].V 	 <= '0;
-					entries[ln][ety][RS_2].V 	 <= '0;
-					entries[ln][ety].busy 	     <=  0;
-					entries[ln][ety].valid 	     <=  0; 
-				end else if (alloc_instr_rs[ln][ety]) begin //lane determined by rs availabilites, more likely to issue to more free rs
-		            
-		            
-					entries[ln][ety][RS_2].Q <= low_1st_free_is[ln][ety] ? (loadInstruc || storeInstruc || ALUImmInstrucNoFuncS || ALUImmInstrucFuncS || LUI_ex) ?
-					                                                        immGenOut_is : src_data_type_rat_is ? 
-					entries[ln][ety][src].V <= low_1st_free_is[ln][ety] ? 
-					
-	                
-	                entries[ln][ety].op 	 <= low_1st_free_is[ln][ety] ? opcode_ar1		: entries[ln][ety].op;
-					entries[ln][ety].robid <= low_1st_free_ar1[ln][ety] ? ROB_id_ar1		: entries[ln][ety].robid;
-	                entries[ln][ety].busy 	 <= low_1st_free_ar1[ln][ety] ? ;
-					entries[ln][ety].valid 	 <= low_1st_free_ar1[ln][ety] ? ;
-					
-					//if current ety, increase age, otherwise, if writing to rs then set as youngest ety
-					entries[ln][ety].age 	 <= entries[ln][ety].valid    ? entries[ln][ety].age + 1'b1 : 
-												low_1st_free_ar1[ln][ety] ? 1'b1 : entries[ln][ety].age;
-				end else begin
-		        //update rs from CDB based on match_src_dep
-				    for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin 
-				        for (int src = 0; src < NUM_SRCS; src++) begin
-					           //updating rs src dep on bdcst matches
-					           entries[ln][ety][src].Q <= match_src_dep[ln][ety][RS_1] ? 0 		 	  : entries[ln][ety][src].Q;
-					           entries[ln][ety][src].V <= match_src_dep[ln][ety][RS_1] ? result_data_cdb : entries[ln][ety][src].V;
-					   end
-					entries[ln][ety].robid <= rob_issue_ptr_is;
-					//clear rs on dispatch
-				end
-			end
-		end
-	end
-	*/
+    */
 	
 endmodule 
