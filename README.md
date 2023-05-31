@@ -42,7 +42,7 @@ Centralized Reservation Station to reduce stalls
 
 CPU uses 2 Register Alias Tables (RAT): 1 Fetch RAT (FRAT) and 1 Retire RAT (RRAT)
 
-Additionally, when a branch is issued, a copy of FRAT data will be assigned to a branch for a maximum of 3 copies. If any of these 3 branches are mispredicted, FRAT can instantly update to these copies. However, if a 4th branch is mispredicted, use of the RRAT will become necessary
+Additionally, when a branch is issued, a copy of FRAT data will be assigned to a branch, recommended 3 copies maximum. If any of these 3 branches are mispredicted, FRAT can instantly update to these copies. However, if a 4th branch is mispredicted, use of the RRAT will become necessary
 
 # FRAT
 
@@ -61,4 +61,4 @@ In the case of the 4th mispredicted branch, the following occurs:
 
 # Retirement
 
-Will retire a maximum of 4 instructions per cycle
+
