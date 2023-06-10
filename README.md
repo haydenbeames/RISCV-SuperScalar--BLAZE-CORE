@@ -1,6 +1,6 @@
 # RISC-V SuperScalar
 
-### parameterize CPU needs using rtl_constants.sv
+### parameterize CPU needs (power, performance, area, etc.) using rtl_constants.sv
 
 
 **WIP: 1st Version Anticipated Completion/Functionality by 6/26**
