@@ -13,7 +13,7 @@
 - floating point MUL & DIV is speculative at this point
 
 4th Version:
--potential to add a slave vector graphics unit
+- potential to add a slave vector graphics unit
 ## Pipe stages
 
 IF*| ID | AR | RS | EX* | CMT | RET 
