@@ -15,8 +15,11 @@
 4th Version:
 - Add a LRU cache (Least Recently Used) or other form of caching to improve locality (currently just R/W directly to memory)
 
-4th Version:
+5th Version:
 - potential to add a vector graphics unit
+
+**SIDE NOTE:
+-  Currently Github is not up to date, using windows Vivado 2021.1 IDE so not connected to github
 ## Pipe stages
 
 IF*| ID | AR | RS | EX* | CMT | RET 
