@@ -4,22 +4,29 @@
 `timescale 1ns / 1ps
 
 //CPU CONSTANTS
-parameter CPU_NUM_LANES = 2; //number of execution lanes, i.e. ld/st, ALU's mult, div
+parameter CPU_NUM_LANES = 4; //number of execution lanes, i.e. ld/st, ALU's mult, div
+parameter CPU_NUM_LANES_CLOG = $clog2(CPU_NUM_LANES);
 parameter DATA_LEN = 32;
+parameter DATA_LEN_CLOG = $clog2(DATA_LEN);
 parameter SRC_LEN = 5;
 parameter OPCODE_LEN = 7;
 parameter BEU_LANE_MASK = 4'b0000;
 parameter MEU_LANE_MASK = 4'b0000;
-parameter ALU_LANE_MASK = 4'b0001;
+parameter ALU_LANE_MASK = 4'b0011;
+parameter NUM_ALU_LANES = 2;
+parameter ALU_LN_OFFSET = 0;
+parameter BEU_LN_OFFSET = 2;
 parameter ALU_CTRL_WIDTH = 4;
 parameter FUNC3_SIZE = 3;
 parameter FUNC7_SIZE = 7;
-localparam SR_FUNC3   = 3'b101;
-localparam SR_I_FUNC3 = 3'b101;
+parameter SR_FUNC3   = 3'b101;
+parameter SR_I_FUNC3 = 3'b101;
 parameter FUNC3_WIDTH = 3;
 parameter NUM_SRCS = 2;
 parameter RS_1	   = 0;
 parameter RS_2 	   = 1;
+parameter TRUE = 1;
+parameter FALSE = 0;
 
 //ISSUE CONSTANTS
 parameter NUM_ISSUE_MAX = 1;
