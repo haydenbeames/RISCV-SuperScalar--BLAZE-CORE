@@ -81,5 +81,7 @@ In the case of the 4th mispredicted branch, the following occurs:
 - Finally, RRAT gets copied to FRAT and CPU resumes execution!
 
 # Retirement
-
+- Completely parameterizable Re-Order Buffer (ROB) width. 
+- Also can retire any # of instructions (obviously there is a trade off between more complex hardware/timing and more instructions retired)
+- User would want to retire at least 1 more instruction than ISSUE_WDITH_MAX (*I personally recommend at least 2 more* -> UPDATE RETIRE_WIDTH_MAX to do this)
 
