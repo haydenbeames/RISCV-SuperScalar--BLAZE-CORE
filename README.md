@@ -1,5 +1,5 @@
 # RISC-V SuperScalar
-**WIP: 1st Version Anticipated Implementation by 6/26**
+**WIP: 1st Version Anticipated Completion/Functionality by 6/26**
 ## Pipe stages
 
 IF*| ID | AR | RS | EX* | CMT | RET 
