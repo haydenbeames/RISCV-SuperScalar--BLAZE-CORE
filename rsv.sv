@@ -234,7 +234,6 @@ module rs (
 	
 	logic [CPU_NUM_LANES-1:0][RS_NUM_ENTRIES-1:0] instruc_2_disp_fu_rs;
 
-	//pre encoded instruction 2 dispatch (just take transpose again) -> no logic delay
 	always_comb begin
 		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
 	   		for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin 
