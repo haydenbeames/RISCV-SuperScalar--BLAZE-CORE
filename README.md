@@ -20,6 +20,7 @@
 
 **SIDE NOTE:
 -  Currently Github is not up to date, using windows Vivado 2021.1 IDE so not connected to github
+-  Usually update github every 2 weeks to 1 month
 ## Pipe stages
 
 IF*| ID | AR | RS | EX* | CMT | RET 
