@@ -2,15 +2,15 @@
 **WIP: 1st Version Anticipated Completion/Functionality by 6/26**
 
 2nd Version:
--Adding 2 RAT system
--Adding RAT checkpoints
--updated/faster macro logic
--improved division algorithm
--reduce partial products on multiplication
+- Adding 2 RAT system
+- Adding RAT checkpoints
+- updated/faster macro logic
+- improved division algorithm
+- reduce partial products on multiplication
 
 3rd Version:
--Add Floating point unit
--floating point MUL & DIV is speculative at this point
+- Add Floating point unit
+- floating point MUL & DIV is speculative at this point
 
 4th Version:
 -potential to add a slave vector graphics unit
