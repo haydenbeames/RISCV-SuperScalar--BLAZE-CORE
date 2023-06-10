@@ -10,7 +10,7 @@
 
 3rd Version:
 - Add Floating point unit
-- floating point MUL & DIV is speculative at this point
+- floating point MUL & DIV is speculative to be completed in this version at this point
 
 4th Version:
 - Add a LRU cache (Least Recently Used) or other form of caching to improve locality (currently just R/W directly to memory)
