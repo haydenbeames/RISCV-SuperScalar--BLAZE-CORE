@@ -83,7 +83,7 @@ module blaze_core_top(
       end
     end
     
-    f_rat f_rat_t(.*);
+   // f_rat f_rat_t(.*);
     
     ///////////////////////////////////////////////////
     //
@@ -93,7 +93,7 @@ module blaze_core_top(
     //only output for now -> may want to add a valid signal
     logic [NUM_RF_R_PORTS-1:0][DATA_LEN-1:0] rf_r_port_data;
     
-    regfile regfile_t(.*);
+    //regfile regfile_t(.*);
     
     ///////////////////////////////////////////////////
     //
@@ -116,7 +116,7 @@ module blaze_core_top(
 	
 	assign robid_out = alu_lane_info_ex1[0].robid;
     
-    rs rs_t(.*);
+    //rs rs_t(.*);
       
     // END FRAT INSTANCE
     /////////////////////////////////////////////////////////////////////
