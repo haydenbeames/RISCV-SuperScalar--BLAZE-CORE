@@ -13,7 +13,7 @@
 - floating point MUL & DIV is speculative at this point
 
 4th Version:
-- Add a LRU (Least Recently Used) or other form of caching to improve locality (currently just R/W directly to memory)
+- Add a LRU cache (Least Recently Used) or other form of caching to improve locality (currently just R/W directly to memory)
 
 4th Version:
 - potential to add a vector graphics unit
