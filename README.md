@@ -48,15 +48,14 @@ Instruction Fetch | Instruction Decode/Rename | Allocate/Rename | Issue | Reserv
 -   MUL, MULH, MULHSU, MULHU, 
 -   DIV, DIVU
 
-## IS STAGE (ISSUE STAGE)
+## AR STAGE (Allocate/Rename)
 
 -rd will first update the FRAT
--instruction will be assigned to an open Reservation Station (RSV)
+-false dependencies will be corrected
+-instruction will be assigned to an open Reservation Station Entry
 
 ## RS (Reservation Station) STAGE 
 Centralized Reservation Station to reduce stalls
-
-
 
 # MISSPECULATING BRANCHES
 
