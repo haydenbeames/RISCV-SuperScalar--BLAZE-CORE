@@ -30,7 +30,7 @@ Instruction Fetch | Instruction Decode/Rename | Allocate/Rename | Issue | Reserv
 ## IS STAGE (ISSUE STAGE)
 
 -rd will first update the FRAT
--uop will be assigned to an open Reservation Station (RSV)
+-instruction will be assigned to an open Reservation Station (RSV)
 
 ## RS (Reservation Station) STAGE 
 Centralized Reservation Station to reduce stalls
@@ -47,11 +47,11 @@ Additionally, when a branch is issued, a copy of FRAT data will be assigned to a
 
 # FRAT
 
-priority renaming to instruction srcs rs1 and rs2 is given to retiring uops. This is to prevent false data dependencies on retired ROB entries. In order for this to work, the retirement data must be forwarded to the source operands
+priority renaming to instruction srcs rs1 and rs2 is given to retiring instructions. This is to prevent false data dependencies on retired ROB entries. In order for this to work, the retirement data must be forwarded to the source operands
 
 # RRAT
 
-the RRAT is updated whenever a committed uop is retired from the Re-Order Buffer (ROB). 
+the RRAT is updated whenever a committed instruction is retired from the Re-Order Buffer (ROB). 
 
 In the case of the 4th mispredicted branch, the following occurs:
 - Branch Predictor is updated
