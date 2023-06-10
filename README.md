@@ -22,7 +22,7 @@
 5th Version:
 - Extensive low power work i.e. clock gating, data gating, temporarily shutting down units
 
-5th Version:
+6th Version:
 - potential to add a vector graphics unit
 
 **SIDE NOTE:
