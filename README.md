@@ -20,6 +20,9 @@
 - Add a LRU cache (Least Recently Used) or other form of caching to improve locality (currently just R/W directly to memory)
 
 5th Version:
+- Extensive low power work i.e. clock gating, data gating, temporarily shutting down units
+
+5th Version:
 - potential to add a vector graphics unit
 
 **SIDE NOTE:
