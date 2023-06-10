@@ -29,7 +29,6 @@ parameter TRUE = 1;
 parameter FALSE = 0;
 
 //ISSUE CONSTANTS
-parameter NUM_ISSUE_MAX = 1;
 parameter ISSUE_WIDTH_MAX = 4;
 parameter ISSUE_WIDTH_MAX_CLOG = $clog2(ISSUE_WIDTH_MAX);
 
