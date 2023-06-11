@@ -14,7 +14,7 @@ Current items under progress: (priority 1 > 2 > 3 > 4)
 - 2: Tournament Branch Predictor, (created perceptron predictor -> not efficient enough, 3 way tournament??)
 - 3: Division unit
 - 3: RRAT for branch mispredictions
-- 4: Fetch Instruction Queue
+- 4: Fetch Instruction Queue (might not implement in V1)
 - 4: Implementation hardware -> clock trees, MMCM, Memory Setup, AXI, etc.
  
 2nd Version:
