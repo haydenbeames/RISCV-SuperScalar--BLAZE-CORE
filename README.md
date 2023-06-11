@@ -8,7 +8,7 @@
 2nd Version:
 - Adding 2 RAT system
 - Adding RAT checkpoints
-- updated/faster macro logic
+- faster and more area efficient macro logic
 - improved division algorithm
 - reduce partial products on multiplication
 
