@@ -4,10 +4,19 @@
 
 
 **WIP: 1st Version Anticipated Completion/Functionality by 6/26**
-
+Current items under progress: (priority 1 > 2 > 3 > 4)
+- 1: finish multiply unit
+- 1: L/S units
+- 1: common data bus
+- 2: area and latency efficient adder tree for integer multiplication
+- 2: Tournament Branch Predictor
+- 3: Division unit
+- 3: RRAT for branch mispredictions
+- 3: Fetch Buffer
+- 4: Implementation hardware -> clock trees, MMCM, Memory Setup, AXI, etc.
+ 
 2nd Version:
-- Adding 2 RAT system
-- Adding RAT checkpoints
+- Adding FRAT checkpoints
 - faster and more area efficient macro logic
 - improved division algorithm
 - reduce partial products on multiplication
