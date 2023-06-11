@@ -79,7 +79,7 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 ## RS (Reservation Station) STAGE 
 - Centralized Reservation Station to reduce stalls
 - have not yet parameterized completely # entries to issue into RS
-- - can currently do 1-4 instructions per cycle (although very quick fix to expand this)
+  - can currently do 1-4 instructions per cycle (although very quick fix to expand this)
 
 # MISSPECULATING BRANCHES
 
