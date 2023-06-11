@@ -72,8 +72,9 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 ## AR STAGE (Allocate/Rename)
 
 -rd will first update the FRAT
--false dependencies will be corrected
--instruction will be assigned to an open Reservation Station Entry
+- false dependencies between renamed instructions heading to RS will be corrected
+- false dependencies due to retiring instructions updating the RAT after read will also be corrected
+- instruction will be assigned to an open Reservation Station Entry
 
 ## RS (Reservation Station) STAGE 
 Centralized Reservation Station to reduce stalls
