@@ -94,7 +94,7 @@ the RRAT is updated whenever a committed instruction is retired from the Re-Orde
 
 In the case of the 4th mispredicted branch, the following occurs:
 - Branch Predictor is updated
-- all uops after misspeculated branch will be marked as stale and be removed from pipeline
+- all instructions after misspeculated branch will be marked as stale and be removed from pipeline
 - misspeculated entries in ROB marked as invalid
 - Pipeline will wait until all valid entries in ROB have retired and updated RRAT
 - Finally, RRAT gets copied to FRAT and CPU resumes execution!
