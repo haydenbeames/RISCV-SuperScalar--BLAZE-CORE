@@ -128,6 +128,9 @@ module int_mul(
         csa_cout_ex2 <= csa_cout_ex1;
     end
     */
+     //testing to see if synthesis can make an efficient tree
+     //otherwise will need to innovate a parameterizable adder tree which combines
+     // 3:2 CSA and 4:2 compressors
     logic [DATA_LEN*2-1:0] mul_rslt_ex2;
     always_comb begin
         mul_rslt_ex2 = '0;
