@@ -73,11 +73,13 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 
 -rd will first update the FRAT
 - false dependencies between renamed instructions heading to RS will be corrected
-- false dependencies due to retiring instructions updating the RAT after read will also be corrected
+- false dependencies due to retiring instructions updating the RAT after read from renaming will also be corrected
 - instruction will be assigned to an open Reservation Station Entry
 
 ## RS (Reservation Station) STAGE 
-Centralized Reservation Station to reduce stalls
+- Centralized Reservation Station to reduce stalls
+- have not yet parameterized completely # entries to issue into RS
+- - can currently do 1-4 instructions per cycle
 
 # MISSPECULATING BRANCHES
 
