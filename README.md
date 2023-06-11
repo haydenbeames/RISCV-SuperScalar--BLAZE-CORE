@@ -50,6 +50,8 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 
 ## ID STAGE (also doing renaming)
 
+- Note: Decode and Renaming included in frat.sv
+
   Since source operands RS1 and RS2 are in fixed locations, the RAT can be read before the instruction is decoded!
   
   At the moment, support for the following instructions:
