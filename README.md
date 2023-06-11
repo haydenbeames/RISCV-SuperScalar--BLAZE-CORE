@@ -67,6 +67,8 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 ### Instructions to be added in future:
 -   DIV, DIVU
 
+- See https://riscv.org/wp-content/uploads/2017/05/riscv-spec-v2.2.pdf pg 104 (pg 116 in pdf view)  for ISA
+
 ## AR STAGE (Allocate/Rename)
 
 -rd will first update the FRAT
