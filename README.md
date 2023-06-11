@@ -4,7 +4,9 @@
 
 
 **WIP: 1st Version Anticipated Completion/Functionality by 6/26**
-a. Current items under progress: (priority 1 > 2 > 3 > 4)
+
+
+Current items under progress: (priority 1 > 2 > 3 > 4)
 - 1: finish multiply unit
 - 1: L/S units
 - 1: common data bus
