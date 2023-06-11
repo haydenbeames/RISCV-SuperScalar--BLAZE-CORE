@@ -62,9 +62,9 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 -   Shift instructions: SLLI, SRLI, SRAI, SLL, SRL, SRA
 -   Jump Instructions: JAL, JALR,
 -   Memory: lw, sw
+-   Multiplication: MUL, MULH, MULHSU, MULHU, 
   
 ### Instructions to be added in future:
--   MUL, MULH, MULHSU, MULHU, 
 -   DIV, DIVU
 
 ## AR STAGE (Allocate/Rename)
