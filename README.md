@@ -8,7 +8,7 @@
 
 
 Current items under progress: (priority 1 > 2 > 3 > 4)
-- 1: finish multiply unit
+- 1: finish multiply unit (See my FastMultiplication Repository for innovative adder tree solutions)
 - 1: L/S units
 - 1: common data bus
 - 2: area and latency efficient adder tree for integer multiplication
