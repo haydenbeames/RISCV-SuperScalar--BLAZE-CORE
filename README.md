@@ -89,7 +89,7 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 
 CPU uses 2 Register Alias Tables (RAT): 1 Fetch RAT (FRAT) and 1 Retire RAT (RRAT)
 
-Additionally, when a branch is issued, a copy of FRAT data will be assigned to a branch, recommended 3 copies maximum. If any of these 3 branches are mispredicted, FRAT can instantly update to these copies. However, if a 4th branch is mispredicted, use of the RRAT will become necessary
+
 
 # FRAT
 
@@ -105,6 +105,10 @@ In the case of the 4th mispredicted branch, the following occurs:
 - misspeculated entries in ROB marked as invalid
 - Pipeline will wait until all valid entries in ROB have retired and updated RRAT
 - Finally, RRAT gets copied to FRAT and CPU resumes execution!
+
+# Checkpoint
+
+A checkpointing system will eventually be implemented to complement the 2 RAT system to reduce the IPC impact of misspeculated branches
 
 # Retirement
 - Completely parameterizable Re-Order Buffer (ROB) width. 
