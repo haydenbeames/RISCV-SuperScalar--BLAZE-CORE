@@ -19,19 +19,15 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-localparam DATA_LEN = 32;
-localparam FUNC3_WIDTH = 3;
-localparam MUL_FUNC3    = 3'b000;
-localparam MULH_FUNC3   = 3'b001;
-localparam MULHSU_FUNC3 = 3'b010;
-localparam MULHU_FUNC3  = 3'b011;
-localparam TRUE = 1;
-localparam FALSE = 0;
+`include "rtl_constants.sv"
+`include "decode_constants.sv"
 
 module signed_mul_4to2_tree_32bit(
     input wire logic clk,
+    input wire logic mul_val,
     input wire logic [DATA_LEN-1:0] op1, op2,
     input wire logic [FUNC3_WIDTH-1:0] func3,
+    input wire logic [ROB_SIZE_CLOG-1:0] robid,
     output logic [DATA_LEN*2-1:0] mul_result
     );
     
@@ -435,27 +431,6 @@ module signed_mul_4to2_tree_32bit(
     end
     
     logic [DATA_LEN*2-1:0] sum_4to2_tree, cout_4to2_tree;
-    logic [DATA_LEN*2-1:0] TEST_stg2, TEST_stg3, TEST_stg4, TEST_stg5;
-    
-    always_comb begin
-        TEST_stg2 = '0;
-        TEST_stg3 = '0;
-        TEST_stg4 = '0;
-        TEST_stg5 = '0;
-        
-        for (int i = 0; i < DATA_LEN/2; i++)
-            TEST_stg2 += in_stg2[i];
-            
-        for (int i = 0; i < DATA_LEN/4; i++)
-            TEST_stg3 += in_stg3[i];
-            
-        for (int i = 0; i < DATA_LEN/8; i++)
-            TEST_stg4 += in_stg4[i];
-            
-        for (int i = 0; i < DATA_LEN/16; i++)
-            TEST_stg5 += in_stg5[i];
-            
-    end
     
     //stage 3 (add sum and carries for final product)
     always_comb begin
