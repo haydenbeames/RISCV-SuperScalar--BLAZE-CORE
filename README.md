@@ -109,6 +109,8 @@ In the case of the 4th mispredicted branch, the following occurs:
 # Checkpoint
 
 A checkpointing system will eventually be implemented to complement the 2 RAT system to reduce the IPC impact of misspeculated branches
+This is also extremely beneficial since it can greatly reduce the wiring from retirement since update from misspeculated branches will be
+less costly, thus improving the overall performance and potentially reducing power since will need less FRAT update logic and wiring
 
 # Retirement
 - Completely parameterizable Re-Order Buffer (ROB) width. 
