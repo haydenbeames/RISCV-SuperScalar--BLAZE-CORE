@@ -34,7 +34,7 @@ Current items under progress: (priority 1 > 2 > 3 > 4)
 - Extensive low power work i.e. clock gating, data gating, temporarily shutting down units
 
 6th Version:
-- may add a vector graphics unit
+- may add a vector graphics unit potentially as a slave unit to the core
 
 **SIDE NOTE:
 -  Currently Github is not up to date, using windows Vivado 2021.1 IDE so not connected to github
