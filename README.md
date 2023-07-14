@@ -112,7 +112,8 @@ This is also extremely beneficial since it can greatly reduce the wiring from re
 less costly, thus improving the overall performance and potentially reducing power since will need less FRAT update logic and wiring
 
 # Retirement
-- Completely parameterizable Re-Order Buffer (ROB) width. 
+- Completely parameterizable Re-Order Buffer (ROB) width.
+- Instruction result data stored inside ROB
 - Also can retire any # of instructions (obviously there is a trade off between more complex hardware/timing and more instructions retired)
 - User would want to retire at least 1 more instruction than ISSUE_WDITH_MAX (*I personally recommend at least 2 more* -> UPDATE RETIRE_WIDTH_MAX to do this)
 
