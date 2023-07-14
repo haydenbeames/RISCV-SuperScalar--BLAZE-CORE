@@ -94,7 +94,7 @@ CPU uses 2 Register Alias Tables (RAT): 1 Fetch RAT (FRAT) and 1 Retire RAT (RRA
 
 priority renaming to instruction srcs rs1 and rs2 is given to retiring instructions. This is to prevent false data dependencies on retired ROB entries. In order for this to work, the retirement data must be forwarded to the source operands
 
-# RRAT
+# RRAT - Implemented as Regfile
 
 the RRAT is updated whenever a committed instruction is retired from the Re-Order Buffer (ROB). 
 
