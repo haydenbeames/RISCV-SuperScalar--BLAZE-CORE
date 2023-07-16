@@ -58,7 +58,9 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 - false dependencies between renamed instructions heading to RS will be corrected
 - false dependencies due to retiring instructions updating the RAT after read from renaming will also be corrected
 - instruction will be assigned to an open Reservation Station Entry
-  
+
+
+
   At the moment, support for the following instructions:
 -   Arithmetic Instructions: add, sub, slt
 -   Arithmetic Immediate: addi, slti
