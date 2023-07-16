@@ -52,6 +52,12 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 - Note: Decode and Renaming included in frat.sv
 
   Since source operands RS1 and RS2 are in fixed locations, the RAT can be read before the instruction is decoded!
+
+
+- rd will first update the FRAT
+- false dependencies between renamed instructions heading to RS will be corrected
+- false dependencies due to retiring instructions updating the RAT after read from renaming will also be corrected
+- instruction will be assigned to an open Reservation Station Entry
   
   At the moment, support for the following instructions:
 -   Arithmetic Instructions: add, sub, slt
@@ -69,13 +75,6 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 -   DIV, DIVU
 
 - See https://riscv.org/wp-content/uploads/2017/05/riscv-spec-v2.2.pdf pg 104 (pg 116 in pdf view)  for ISA
-
-## AR STAGE (Allocate/Rename)
-
-- rd will first update the FRAT
-- false dependencies between renamed instructions heading to RS will be corrected
-- false dependencies due to retiring instructions updating the RAT after read from renaming will also be corrected
-- instruction will be assigned to an open Reservation Station Entry
 
 ## RS (Reservation Station) STAGE 
 - Centralized Reservation Station to reduce stalls
