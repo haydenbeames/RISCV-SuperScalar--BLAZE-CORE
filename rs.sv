@@ -33,7 +33,7 @@
 `include "riscv_alu_constants.sv"
 `include "macros.sv"
 `include "structs.sv"
-
+ 
 //Centralized Reservation Station for ALL Instruction types
 module rs (
 	input wire logic clk, rst, 
