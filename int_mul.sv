@@ -440,7 +440,7 @@ module signed_mul_4to2_tree_32bit(
             sum_4to2_tree[i]  = in_stg5[0][i];
             cout_4to2_tree[i] = in_stg5[1][i];
         end
-        sum_4to2_tree[0] = in_stg3[0][0];
+	    sum_4to2_tree[0] = in_stg5[0][0];
         
     end
     
