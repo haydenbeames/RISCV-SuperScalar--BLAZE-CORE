@@ -21,21 +21,25 @@
 
 `include "rtl_constants.sv"
 `include "decode_constants.sv"
-
-module signed_mul_4to2_tree_32bit(
+//need to figure out timing where to break up into pipe stage -> will likely be 2 cycle int_mul****
+module int_mul(
     input wire logic clk,
-    input wire logic mul_val,
-    input wire logic [DATA_LEN-1:0] op1, op2,
-    input wire logic [FUNC3_WIDTH-1:0] func3,
-    input wire logic [ROB_SIZE_CLOG-1:0] robid,
-    output logic [DATA_LEN*2-1:0] mul_result
+    input wire logic mul_val_ex1,
+    input wire logic [DATA_LEN-1:0] op1_ex1,
+    input wire logic [DATA_LEN-1:0] op2_ex1,
+    input wire logic [FUNC3_WIDTH-1:0] func3_ex1,
+    input wire logic [ROB_SIZE_CLOG-1:0] robid_ex1,
+    
+    output logic mul_val_ex2,
+    output logic [DATA_LEN*2-1:0] mul_result_ex2,
+    output logic [ROB_SIZE_CLOG-1:0] robid_ex2
     );
     
     logic signed_op1_ex1, signed_op2_ex1;
 
     //determine if signed multiplication
     always_comb begin
-        case(func3)
+        case(func3_ex1)
             MUL_FUNC3: begin
                 signed_op1_ex1 = TRUE;
                 signed_op2_ex1 = TRUE;
@@ -66,13 +70,13 @@ module signed_mul_4to2_tree_32bit(
     //generate partial products
     always_comb begin
         for (int i = 0; i < DATA_LEN-1; i++) begin
-            multiplicand_qual[i] = op1 & {DATA_LEN{op2[i]}};
+            multiplicand_qual[i] = op1_ex1 & {DATA_LEN{op2_ex1[i]}};
         end
         
         if (signed_op2_ex1)
-            multiplicand_qual[DATA_LEN-1] = {DATA_LEN{op2[DATA_LEN-1]}} & (~op1 + 1'b1); //twos complement last partial product
+            multiplicand_qual[DATA_LEN-1] = {DATA_LEN{op2_ex1[DATA_LEN-1]}} & (~op1_ex1 + 1'b1); //twos complement last partial product
         else
-            multiplicand_qual[DATA_LEN-1] = {DATA_LEN{op2[DATA_LEN-1]}} & op1;
+            multiplicand_qual[DATA_LEN-1] = {DATA_LEN{op2_ex1[DATA_LEN-1]}} & op1_ex1;
             
         for (int i = 0; i < DATA_LEN-1; i++) begin
             for (int j = 0; j < DATA_LEN*2; j++) begin
@@ -81,7 +85,7 @@ module signed_mul_4to2_tree_32bit(
                 else if (j < DATA_LEN + i)
                     pp_nontri[i][j] = multiplicand_qual[i][j-i];
                 else
-                    pp_nontri[i][j] = signed_op1_ex1 & op2[i] & op1[DATA_LEN-1];
+                    pp_nontri[i][j] = signed_op1_ex1 & op2_ex1[i] & op1_ex1[DATA_LEN-1];
             end
         end
         
@@ -92,11 +96,11 @@ module signed_mul_4to2_tree_32bit(
             else if (j < DATA_LEN + (DATA_LEN-1))
                 pp_nontri[DATA_LEN-1][j] = multiplicand_qual[DATA_LEN-1][j-(DATA_LEN-1)];
             else
-                pp_nontri[DATA_LEN-1][j] = signed_op1_ex1 & op2[DATA_LEN-1] & op1[DATA_LEN-1];
+                pp_nontri[DATA_LEN-1][j] = signed_op1_ex1 & op2_ex1[DATA_LEN-1] & op1_ex1[DATA_LEN-1];
         end
     
         //sign extension cases on last pp
-        pp_nontri[DATA_LEN-1][DATA_LEN*2-1] = ((signed_op1_ex1 & op1[DATA_LEN-1]) ^ (signed_op2_ex1 & op2[DATA_LEN-1])) & op2[DATA_LEN-1] & multiplicand_qual[DATA_LEN-1][DATA_LEN-1]; 
+        pp_nontri[DATA_LEN-1][DATA_LEN*2-1] = ((signed_op1_ex1 & op1_ex1[DATA_LEN-1]) ^ (signed_op2_ex1 & op2_ex1[DATA_LEN-1])) & op2_ex1[DATA_LEN-1] & multiplicand_qual[DATA_LEN-1][DATA_LEN-1]; 
 
         /* Dont need to put lower partial products to upper to create triangle in signed multiplication
         for (int i = 0; i < DATA_LEN; i++) begin
@@ -419,7 +423,7 @@ module signed_mul_4to2_tree_32bit(
         end
     endgenerate
     
-    //create stage 4 default inputs (just unused from stage 3)
+    //create stage 5 default inputs (just unused from stage 4)
     always_comb begin
         for (int j = 0; j <= 1; j++)
             for (int i = j; i >= 0; i--)
@@ -430,20 +434,27 @@ module signed_mul_4to2_tree_32bit(
                 in_stg5[i][j] = in_stg4[i + (j-1)][j];
     end
     
-    logic [DATA_LEN*2-1:0] sum_4to2_tree, cout_4to2_tree;
-    
-    //stage 3 (add sum and carries for final product)
+    logic [DATA_LEN*2-1:0] sum_4to2_tree_ex1, cout_4to2_tree_ex1;
+    logic [DATA_LEN*2-1:0] sum_4to2_tree_ex2, cout_4to2_tree_ex2;
+    //stage 5 (add sum and carries for final product)
     always_comb begin
-        sum_4to2_tree  = '0;
-        cout_4to2_tree = '0;
+        sum_4to2_tree_ex1  = '0;
+        cout_4to2_tree_ex1 = '0;
         for (int i = 1; i < (DATA_LEN*2); i++) begin
-            sum_4to2_tree[i]  = in_stg5[0][i];
-            cout_4to2_tree[i] = in_stg5[1][i];
+            sum_4to2_tree_ex1[i]  = in_stg5[0][i];
+            cout_4to2_tree_ex1[i] = in_stg5[1][i];
         end
-	    sum_4to2_tree[0] = in_stg5[0][0];
+        sum_4to2_tree_ex1[0] = in_stg5[0][0];
         
     end
     
-    assign mul_result = sum_4to2_tree + cout_4to2_tree;
+    always_ff@(posedge clk) begin
+        robid_ex2          <= robid_ex1;
+        mul_val_ex2        <= mul_val_ex1;
+        sum_4to2_tree_ex2  <= sum_4to2_tree_ex1;
+        cout_4to2_tree_ex2 <= cout_4to2_tree_ex1;
+    end
+    
+    assign mul_result_ex2[DATA_LEN*2-1:0] = sum_4to2_tree_ex2 + cout_4to2_tree_ex2;
 
 endmodule
