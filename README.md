@@ -83,13 +83,11 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 - Centralized Reservation Station to reduce stalls
 - have not yet parameterized completely # entries to issue into RS
   - can currently do 1-4 instructions per cycle (although very quick fix to expand this)
-## FWD (Forward) SAGE:
+## FWD (Forward) STAGE:
     1 Cycle Lane:      AR | RS | FWD | EX1 | CMT
     Long Latency Lane: AR | RS | FWD | EX1 | EX2 | CMT
     
     FWD MUX: select data out of EX1, EX2, or CMT 
-    
-    Scheduling determined in RS to time FWD select muxes
 
 # MISSPECULATING BRANCHES
 
