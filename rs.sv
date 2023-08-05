@@ -1,5 +1,5 @@
 `timescale 1ns / 1ps
- 
+
 /***************************************************************************
 * 
 * Module:   rs
@@ -33,18 +33,14 @@
 `include "riscv_alu_constants.sv"
 `include "macros.sv"
 `include "structs.sv"
- 
+
 //Centralized Reservation Station for ALL Instruction types
-module rs (
+module rs(
 	input wire logic clk, rst, 
 	
 
-	//inputs from CDB
-	input wire logic [CPU_NUM_LANES-1:0][ROB_SIZE_CLOG-1:0] robid_cdb,
-	input wire logic [CPU_NUM_LANES-1:0][5:0]  op_cdb,
-	input wire logic [CPU_NUM_LANES-1:0][4:0]  rd_tag_cdb,
-	input wire logic [CPU_NUM_LANES-1:0] 	   commit_instr_cdb,
-	input wire logic [CPU_NUM_LANES-1:0][31:0] result_data_cdb,
+	//inputs from CDB 
+	input cdb_t [CPU_NUM_LANES-1:0] cdb_cmt,
 	
     //inputs from rob
     input wire logic rob_full,
@@ -64,7 +60,8 @@ module rs (
 	input wire logic [CPU_NUM_LANES-1:0] fu_free, fu_free_1c, //fu_free_1c means fu free in 1 cycle
     
 	//rs OUTPUTS TO EXECUTION UNITS
-	output alu_lane_t [NUM_ALU_LANES-1:0] alu_lane_info_ex1,
+	output int_alu_lane_t [NUM_INT_ALU_LN+INT_ALU_LN_OFFSET-1:INT_ALU_LN_OFFSET] int_alu_ln_info_ex1,
+	output int_mul_lane_t [NUM_INT_MUL_LN+INT_MUL_LN_OFFSET-1:INT_MUL_LN_OFFSET] int_mul_ln_info_ex1,
 	output logic 	   rs_full
 );
 
@@ -127,13 +124,19 @@ module rs (
 				rs[free_rs_ety[i]].robid   <= instr_info_ar[i].robid;
 				rs[free_rs_ety[i]].rd      <= rd_ar[i];
             	rs[free_rs_ety[i]].valid   <=  1;
-                rs[free_rs_ety[i]].ctrl_sig.alu_ctrl <= instr_info_ar[  i].ctrl_sig.alu_ctrl;
-                rs[free_rs_ety[i]].ctrl_sig.fu_dest  <= fu_dest_qual_ar[i];
-            	rs[free_rs_ety[i]].ctrl_sig.func3    <= instr_info_ar[  i].ctrl_sig.func3;
+            	
+            	rs[free_rs_ety[i]].ctrl_sig.memRead  <= instr_info_ar[i].ctrl_sig.memRead;
+            	rs[free_rs_ety[i]].ctrl_sig.memWrite <= instr_info_ar[i].ctrl_sig.memWrite;
+            	rs[free_rs_ety[i]].ctrl_sig.rfWrite  <= instr_info_ar[i].ctrl_sig.rfWrite;
+                rs[free_rs_ety[i]].ctrl_sig.alu_ctrl <= instr_info_ar[i].ctrl_sig.alu_ctrl;
+                rs[free_rs_ety[i]].ctrl_sig.alu_src  <= instr_info_ar[i].ctrl_sig.alu_src;
+            	rs[free_rs_ety[i]].ctrl_sig.func3    <= instr_info_ar[i].ctrl_sig.func3;
+            	rs[free_rs_ety[i]].ctrl_sig.fu_dest  <= fu_dest_qual_ar[i];
 				for (int s = 0; s < NUM_SRCS; s++) begin 
-					rs[free_rs_ety[i]].Q[s] <= src_data_type_rdy_2_issue_ar[i][s] ? 0 : instr_info_ar[i].robid;
-					rs[free_rs_ety[i]].V[s] <= src_data_type_rdy_2_issue_ar[i][s] ? rf_r_port_data[i*NUM_SRCS+s] : 0;
-					rs[free_rs_ety[i]].imm  <= instr_info_ar[i].ctrl_sig.alu_src  ? instr_info_ar[i].imm : 0;
+					rs[free_rs_ety[i]].Q[s]         <= src_data_type_rdy_2_issue_ar[i][s] ? 0 : src_rdy_2_issue_ar[i][s];
+					rs[free_rs_ety[i]].Q_src_dep[s] <= src_data_type_rdy_2_issue_ar[i][s] ? 0 : 1; //will be a case where not a source dep but is immediate but will still get written, should still work fine just unecessary toggling
+					rs[free_rs_ety[i]].V[s]         <= src_data_type_rdy_2_issue_ar[i][s] ? rf_r_port_data[i*NUM_SRCS+s] : 0;
+					rs[free_rs_ety[i]].imm          <= instr_info_ar[i].ctrl_sig.alu_src  ? instr_info_ar[i].imm : 0;
 				end
             end
         end
@@ -144,40 +147,58 @@ module rs (
     lane_cnt_t [ISSUE_WIDTH_MAX-1:0] lane_count = '{default:0};
     
     logic [ISSUE_WIDTH_MAX-1:0] fu_1_state_TEST;
-    logic [CPU_NUM_LANES-1:0] inbuff_1_1st_fu_dest_ar, outbuff_1_1st_fu_dest_ar;
+    buff_1_1st_fu_dest_ar_t inbuff_1_1st_fu_dest_ar, outbuff_1_1st_fu_dest_ar;
     
     always_ff@(posedge clk) begin
         if (rst) begin
             for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
-                //fu_dest_cs[i].alu <= ALU_LANE_MASK;
-                //fu_dest_ns[i].alu <= ALU_LANE_MASK;
+                //fu_dest_cs[i].alu <= INT_ALU_LANE_MASK;
+                //fu_dest_ns[i].alu <= INT_ALU_LANE_MASK;
             end
         end else begin
             fu_dest_cs <= fu_dest_ns;
         end
     end
     
-	//functional unit binding SM
+	//functional unit binding State Machines
+	//look into rewriting for more clarity
 	//add more units later
 	always_comb begin
         fu_dest_qual_ar = '0;
         fu_1_state_TEST = '0;
         lane_count = '{default:0};
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
-            fu_dest_ns[i].alu = ALU_LANE_MASK;
+            fu_dest_ns[i].alu = INT_ALU_LANE_MASK;
+            fu_dest_ns[i].mul = INT_MUL_LANE_MASK;
 	    	case (instr_info_ar[i].ctrl_sig.fu_dest)
-	    	    ALU_LANE_MASK: begin 
+	    	    INT_ALU_LANE_MASK: begin 
 	    	        for (int ln = 0; ln < CPU_NUM_LANES ; ln++)
 	    	            lane_count[i].alu += fu_dest_cs[i].alu[ln];
 	    	            
 	    	        if ($unsigned(lane_count[i].alu) > 1) begin
-	    	             inbuff_1_1st_fu_dest_ar = fu_dest_cs[i].alu;
-	    	            `ONE_1ST_LSB(outbuff_1_1st_fu_dest_ar, inbuff_1_1st_fu_dest_ar);
-	    	            fu_dest_qual_ar[i] = outbuff_1_1st_fu_dest_ar;
+	    	             inbuff_1_1st_fu_dest_ar.alu = fu_dest_cs[i].alu;
+	    	            `ONE_1ST_LSB(outbuff_1_1st_fu_dest_ar.alu, inbuff_1_1st_fu_dest_ar.alu);
+	    	            fu_dest_qual_ar[i] = outbuff_1_1st_fu_dest_ar.alu;
 	    	            fu_dest_ns[i].alu &= ~fu_dest_qual_ar[i];
 	    	        end else begin
 	    	            fu_dest_qual_ar[i] = fu_dest_cs[i].alu;
-	    	            fu_dest_ns[i].alu = ALU_LANE_MASK;
+	    	            fu_dest_ns[i].alu = INT_ALU_LANE_MASK;
+	    	            fu_1_state_TEST[i] = 1;
+	    	        end
+	    	    end
+	    	    
+	    	    INT_MUL_LANE_MASK: begin 
+	    	        for (int ln = 0; ln < CPU_NUM_LANES ; ln++)
+	    	            lane_count[i].mul += fu_dest_cs[i].mul[ln];
+	    	            
+	    	        if ($unsigned(lane_count[i].mul) > 1) begin
+	    	             inbuff_1_1st_fu_dest_ar.mul = fu_dest_cs[i].mul;
+	    	            `ONE_1ST_LSB(outbuff_1_1st_fu_dest_ar.mul, inbuff_1_1st_fu_dest_ar.mul);
+	    	            fu_dest_qual_ar[i] = outbuff_1_1st_fu_dest_ar.mul;
+	    	            fu_dest_ns[i].mul &= ~fu_dest_qual_ar[i];
+	    	        end else begin
+	    	            fu_dest_qual_ar[i] = fu_dest_cs[i].mul;
+	    	            fu_dest_ns[i].mul = INT_MUL_LANE_MASK;
 	    	            fu_1_state_TEST[i] = 1;
 	    	        end
 	    	    end
@@ -199,7 +220,7 @@ module rs (
 		rdy_2_disp_rs = '{default:0};
 		for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
 	   		for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
-	   		    rdy_2_disp_rs[ln][ety] = rs[ety].valid & (rs[ety].Q[RS_1] == 0) & (rs[ety].Q[RS_2] == 0) & rs[ety].ctrl_sig.fu_dest[ln];
+	   		    rdy_2_disp_rs[ln][ety] = rs[ety].valid & (~rs[ety].Q_src_dep[RS_1]) & (~rs[ety].Q_src_dep[RS_2]) & rs[ety].ctrl_sig.fu_dest[ln];
 	   		end
 		end
 	end
@@ -260,30 +281,90 @@ module rs (
 	///
 	/////////////////////////////////////////////////
 	
-	
-	
-	logic [CPU_NUM_LANES-1:0] testALU_MASK;
-	
 	always_ff@(posedge clk) begin 
-	   testALU_MASK = '0;
 	   for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin 
-			if (ALU_LANE_MASK[ln]) begin
-			     testALU_MASK[ln] = 1;
+			if (INT_ALU_LANE_MASK[ln]) begin
 				if (any_rdy_2_disp_qual_rs[ln]) begin 
-					alu_lane_info_ex1[ln-ALU_LN_OFFSET].src[RS_1] <= rs[fu_disp_enc_rs[ln]].V[RS_1];
-					alu_lane_info_ex1[ln-ALU_LN_OFFSET].src[RS_2] <= rs[fu_disp_enc_rs[ln]].V[RS_2];
-					alu_lane_info_ex1[ln-ALU_LN_OFFSET].op        <= rs[fu_disp_enc_rs[ln]].ctrl_sig.alu_src ? rs[fu_disp_enc_rs[ln]].imm : 
-																									           rs[fu_disp_enc_rs[ln]].V[RS_2];
-					alu_lane_info_ex1[ln-ALU_LN_OFFSET].robid 	  <= rs[fu_disp_enc_rs[ln]].robid;
-					alu_lane_info_ex1[ln-ALU_LN_OFFSET].alu_ctrl  <= rs[fu_disp_enc_rs[ln]].ctrl_sig.alu_ctrl;
-				end 
-			end 
+                    int_alu_ln_info_ex1[ln].v         <= 1;
+					int_alu_ln_info_ex1[ln].src[RS_1] <= rs[fu_disp_enc_rs[ln]].V[RS_1];
+					int_alu_ln_info_ex1[ln].src[RS_2] <= rs[fu_disp_enc_rs[ln]].ctrl_sig.alu_src ? rs[fu_disp_enc_rs[ln]].imm : 
+									           													   rs[fu_disp_enc_rs[ln]].V[RS_2];
+					int_alu_ln_info_ex1[ln].robid 	  <= rs[fu_disp_enc_rs[ln]].robid;
+					int_alu_ln_info_ex1[ln].alu_ctrl  <= rs[fu_disp_enc_rs[ln]].ctrl_sig.alu_ctrl;
+					
+				end else begin
+				    int_alu_ln_info_ex1[ln-INT_ALU_LN_OFFSET].v         <= 0;
+				end
+			end
+			if (INT_MUL_LANE_MASK[ln]) begin
+			    if (any_rdy_2_disp_qual_rs[ln]) begin
+                    int_mul_ln_info_ex1[ln].v         <= 1;
+                    int_mul_ln_info_ex1[ln].src[RS_1] <= rs[fu_disp_enc_rs[ln]].V[RS_1];
+                    int_mul_ln_info_ex1[ln].src[RS_2] <= rs[fu_disp_enc_rs[ln]].V[RS_1];
+                    int_mul_ln_info_ex1[ln].robid     <= rs[fu_disp_enc_rs[ln]].robid;
+                    int_mul_ln_info_ex1[ln].func3     <= rs[fu_disp_enc_rs[ln]].ctrl_sig.func3;
 
+			    end else begin
+			        int_mul_ln_info_ex1[ln].v         <= 0;
+			    end
+		    end 
 	   	end	
 	end
+	
+	///////////////////////////////////////////////
+	// Invalidate Dispatched Instruction from RS
+	always_ff@(posedge clk) begin
+	   for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin 
+	       if (any_rdy_2_disp_qual_rs[ln]) begin
+	           rs[fu_disp_enc_rs[ln]].valid <= 0;
+	       end 
+	   end
+	end
 
+	logic [RS_NUM_ENTRIES-1:0][NUM_SRCS-1:0][CPU_NUM_LANES-1:0]       match_src_dep_rs;  //find src dependency match -> which src of the rs entry has a match with the data on the producing common data bus lane 
+    logic                                   [CPU_NUM_LANES-1:0]      inbuff_match_src_dep_rs;
+    logic                                   [CPU_NUM_LANES_CLOG-1:0] outbuff_match_src_dep_rs; 
+    logic [RS_NUM_ENTRIES-1:0][NUM_SRCS-1:0][CPU_NUM_LANES_CLOG-1:0] match_src_dep_idx_rs; //index of which CDB lane data is dependent on
     
-
+	always_comb begin
+	   match_src_dep_rs = '{default:0};
+	   for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
+	       for (int src = 0; src < NUM_SRCS; src++) begin
+	           for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
+	               match_src_dep_rs[ety][src][ln] = (cdb_cmt[ln].robid == rs[ety].Q[src]) & rs[ety].valid & cdb_cmt[ln].v & rs[ety].Q_src_dep[src];	               
+	           end
+	           inbuff_match_src_dep_rs = match_src_dep_rs[ety][src];
+	           `ONE_HOT_ENCODE(outbuff_match_src_dep_rs, inbuff_match_src_dep_rs)
+	           match_src_dep_idx_rs[ety][src] = outbuff_match_src_dep_rs;
+	       end
+	   end
+	end
+	
+	always_ff@(posedge clk) begin
+	   for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
+	       for (int src = 0; src < NUM_SRCS; src++) begin
+	           if (|match_src_dep_rs[ety][src]) begin
+	               rs[ety].Q_src_dep[src] <= 0;
+	               rs[ety].V[src]         <= cdb_cmt[match_src_dep_idx_rs[ety][src]].data;
+	           end
+	       end 
+	   end
+	end
+/*
+    always_ff@(posedge clk) begin
+        for (int ety = 0; ety < RS_NUM_ENTRIES; ety++) begin
+            for (int src = 0; src < NUM_SRCS; src++) begin
+                if (|math_src_dep_rs[ety][src]) begin
+                    rs[ety].Q[src] <= '0;
+                    for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
+                        rs[ety].V[src] <= math_src_dep_rs[ety][src][ln
+                    end
+                    
+                end
+            end
+        end
+    end
+    */
 	/////////////////////////////////////////////////////
 	// PIPELINE
 	// 
