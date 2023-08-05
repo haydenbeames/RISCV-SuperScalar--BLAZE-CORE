@@ -19,7 +19,8 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-//forwarding unit  
+// forwarding unit  
+// created in response to poor performance on many streams of sequential instructions
 module fwd(
     input wire logic clk,
         
