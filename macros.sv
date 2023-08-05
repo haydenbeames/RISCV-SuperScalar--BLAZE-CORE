@@ -52,14 +52,13 @@
         //$display("First One MSB: %0b", OUT); \
     end
 
-//NOTE: this function is likely not being synthesized the way I think it should -> could be a bunch of muxes
-//May need to rewrite as a parameterized encoder
+// NOTE!!!! RTL analysis shows this as a chain of muxes -> will need to implement as LUT likely
 `define ONE_HOT_ENCODE(OUT,IN) \
     begin \
         logic [$clog2($bits(IN))-1:0] out; \
         out = 0; \
         for (int i = 0; i < $bits(IN); i++) begin \
-            $display("i: %0d  IN[%0d]: %0d\n", i, i, IN[i]); \
+            //$display("i: %0d  IN[%0d]: %0d\n", i, i, IN[i]); \
             if (IN[i] & 1'b1) \
                 out = i; \
         end \
