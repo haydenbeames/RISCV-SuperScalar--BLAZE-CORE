@@ -127,7 +127,7 @@ A checkpointing system will eventually be implemented to complement the 2 RAT sy
 # Execution Units
 
 ## Radix-4 SRT Division
--18 cycle output
+- 18 cycle output
 
 ## Radix-4 Multiplier
 - 2 cycle output
