@@ -18,6 +18,7 @@ Current items under progress: (priority 1 > 2 > 3 > 4)
 - 4: Implementation hardware -> clock trees, MMCM, Memory Setup, AXI, etc.
  
 2nd Version:
+- Add Support for Matrix Multiply Accumulate (MAC) for AI acceleration
 - Adding FRAT checkpoints
 - faster and more area efficient macro logic
 - improved division algorithm
