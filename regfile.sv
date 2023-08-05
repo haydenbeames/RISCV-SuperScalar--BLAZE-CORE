@@ -12,6 +12,7 @@
 
 //include files
 `include "rtl_constants.sv"
+`include "structs.sv"
 
 //regfile module ports
 module regfile(
@@ -21,10 +22,7 @@ module regfile(
     input wire logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_rdy_2_issue_ar,
     
     //retire inputs
-    input wire logic  [ROB_MAX_RETIRE-1:0][SRC_LEN-1:0]  rd_ret,
-    input wire logic  [ROB_MAX_RETIRE-1:0]              val_ret,
-    input wire logic  [ROB_MAX_RETIRE-1:0]              rfWrite_ret,
-    input wire logic  [ROB_MAX_RETIRE-1:0][DATA_LEN-1:0]    wb_data_ret,
+    input info_ret_t [ROB_MAX_RETIRE-1:0] info_ret,
     
     output logic [NUM_RF_R_PORTS-1:0][DATA_LEN-1:0] rf_r_port_data
     );
@@ -49,13 +47,14 @@ module regfile(
     /////////////////////////////////////////
     // write conflict detector
     always_comb begin
-        w_val_ret = val_ret & rfWrite_ret; //checking which retiring instr. are updating rf/regfile
-
+        for (int r = 0; r < RETIRE_WIDTH_MAX; r++) begin
+           w_val_ret[r] = info_ret[r].v & info_ret[r].rfWrite; //checking which retiring instr. are updating rat/regfile
+        end
         rf_ret_rd_conflict_mtx = '{default:0};
         for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
             for (int j = 0; j < RETIRE_WIDTH_MAX; j++) begin
                 if (j != i)
-                    rf_ret_rd_conflict_mtx[i][j] = (rd_ret[i] == rd_ret[j]);
+                    rf_ret_rd_conflict_mtx[i][j] = (info_ret[i].rd == info_ret[j].rd);
             end
         end  
         
@@ -76,8 +75,8 @@ module regfile(
 
     always_comb begin
         for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
-            rf_w_port_data[i] = wb_data_ret[i];
-            rf_w_port_addr[i] = rd_ret[i];
+            rf_w_port_data[i] = info_ret[i].data;
+            rf_w_port_addr[i] = info_ret[i].rd;
         end
     end
     /////////////////////////////////////////
