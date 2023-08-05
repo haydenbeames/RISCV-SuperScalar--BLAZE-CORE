@@ -132,3 +132,9 @@ A checkpointing system will eventually be implemented to complement the 2 RAT sy
 ## Radix-4 Multiplier
 - 2 cycle output
 - uses 4:2 compressors for fast adder tree addition
+
+# BEU (Branch Execution Unit)
+
+# MAC (Multiply Accumulate)
+- Implementing soon with other matrix operations to allow for Machine Learning Acceleration
+- May potentialy incorporate many of these modules for a vector unit with a singular MAC including in Floating Point unit
