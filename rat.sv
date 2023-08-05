@@ -41,19 +41,17 @@
 `include "macros.sv"
 `include "structs.sv"
 
-module f_rat(
-    input logic   clk, rst,
-    input logic  [ISSUE_WIDTH_MAX-1:0] instr_val_id, //valid instr id
-    input logic  [ISSUE_WIDTH_MAX-1:0][DATA_LEN-1:0] instr_id,
+module rat(
+    input logic   clk, 
+    input logic   rst,
+    input logic  [ISSUE_WIDTH_MAX-1:0]               instr_val_id, //valid instr id
+    input logic  [ISSUE_WIDTH_MAX-1:0][DATA_LEN-1:0]     instr_id,
 
     //inputs from rob
     input logic  [ISSUE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] rob_is_ptr,
-    input logic   rob_full,
+    input logic                                             rob_full,
     //rob retire bus
-    input logic  [ROB_MAX_RETIRE-1:0][SRC_LEN-1:0]          rd_ret,
-    input logic  [ROB_MAX_RETIRE-1:0]                      val_ret,
-    input logic  [ROB_MAX_RETIRE-1:0]                   branch_ret,  //sw also doesnt write !!!!! need signal -> generalize??? 
-    input logic  [ROB_MAX_RETIRE-1:0][ROB_SIZE_CLOG-1:0] robid_ret,
+    input info_ret_t [ROB_MAX_RETIRE-1:0] info_ret,
     
     //outputs of f-rat
     output logic [ISSUE_WIDTH_MAX-1:0][OPCODE_LEN-1:0] opcode_ar,
@@ -61,6 +59,7 @@ module f_rat(
     output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_rdy_2_issue_ar,
     output logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                  src_data_type_rdy_2_issue_ar, // 1: PRF, 0: ROB 
     output logic [ISSUE_WIDTH_MAX-1:0]      		instr_val_ar,
+    output instr_info_t [ISSUE_WIDTH_MAX-1:0] instr_info_id, //to reorder buffer
     output instr_info_t [ISSUE_WIDTH_MAX-1:0] instr_info_ar
     );
 
@@ -71,15 +70,15 @@ module f_rat(
     logic [ISSUE_WIDTH_MAX-1:0][FUNC3_SIZE-1:0] func3_id;
     logic [ISSUE_WIDTH_MAX-1:0][FUNC7_SIZE-1:0] func7_id;
     
-    logic [RETIRE_WIDTH_MAX-1:0]                                        rat_write_id;
+    logic [RETIRE_WIDTH_MAX-1:0]                                            rat_write_id;
     logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0]                     rat_port_data_id;
     logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN      -1:0]                     rat_port_addr_id;
     
     logic [RETIRE_WIDTH_MAX-1:0] ret_val_ar;
     
 
-    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_renamed_ar;
-    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                          src_data_type_ar; // 1: PRF, 0: ROB 
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0]   src_renamed_ar;
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0]                            src_data_type_ar; // 1: PRF, 0: ROB 
     
     always_comb begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
@@ -93,8 +92,6 @@ module f_rat(
     //
     /////////////////////////////////////////////////
     
-    instr_info_t [ISSUE_WIDTH_MAX-1:0] instr_info_id;    
-
     always_comb begin
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
             opcode_id[i] = instr_id[i][6:0];
@@ -158,7 +155,7 @@ module f_rat(
                          end
                 I_TYPE3: begin//ALU imm
                     		instr_info_id[i].ctrl_sig.alu_src  = 1;
-                    		instr_info_id[i].ctrl_sig.fu_dest  = ALU_LANE_MASK;
+                    		instr_info_id[i].ctrl_sig.fu_dest  = INT_ALU_LANE_MASK;
 							instr_info_id[i].ctrl_sig.memRead  = 0;
 							instr_info_id[i].ctrl_sig.memWrite = 0;
 							instr_info_id[i].ctrl_sig.rfWrite  = 1;
@@ -185,7 +182,8 @@ module f_rat(
                 		end
                 U_TYPE1: begin	//LUI  //ALU op1 == 0;  just use immediate in op2 and store in rd
                     		instr_info_id[i].ctrl_sig.alu_src  = 1;
-							instr_info_id[i].ctrl_sig.fu_dest  = ALU_LANE_MASK; //no ALU logic needed
+                    		instr_info_id[i].ctrl_sig.alu_ctrl = DEFAULT_OP;
+							instr_info_id[i].ctrl_sig.fu_dest  = INT_ALU_LANE_MASK; //no ALU logic needed
 							instr_info_id[i].ctrl_sig.memRead  = 0;
 							instr_info_id[i].ctrl_sig.memWrite = 0;
 							instr_info_id[i].ctrl_sig.rfWrite  = 1;
@@ -195,7 +193,8 @@ module f_rat(
 							   //add a 20-bit unsigned immediate value to the 20 most significant bits of the program counter (PC) and store the result in a register
 							   //op 1 PC, op2 immediate
                     		instr_info_id[i].ctrl_sig.alu_src  = 1;
-                    		instr_info_id[i].ctrl_sig.fu_dest  = ALU_LANE_MASK; //no ALU logic needed
+                    		instr_info_id[i].ctrl_sig.alu_ctrl = DEFAULT_OP;
+                    		instr_info_id[i].ctrl_sig.fu_dest  = INT_ALU_LANE_MASK; //no ALU logic needed
 							instr_info_id[i].ctrl_sig.memRead  = 0;
 							instr_info_id[i].ctrl_sig.memWrite = 0;
 							instr_info_id[i].ctrl_sig.rfWrite  = 1;
@@ -227,31 +226,40 @@ module f_rat(
 							instr_info_id[i].ctrl_sig.rfWrite  = 0;
                          end
                 R_TYPE: begin // register ALU instruc
-							instr_info_id[i].ctrl_sig.alu_src  = 0;
-                    		instr_info_id[i].ctrl_sig.fu_dest  = ALU_LANE_MASK;
-							instr_info_id[i].ctrl_sig.memRead  = 0;
-							instr_info_id[i].ctrl_sig.memWrite = 0;
-							instr_info_id[i].ctrl_sig.rfWrite  = 1;
-                    		case(func3_id[i])
-                    		    3'b000:   //add & SUB//***NOTE DID NOT CREATE CONSTANT -- CONSTANT SHOULD BE ZERO***
-                    		        instr_info_id[i].ctrl_sig.alu_ctrl = (func7_id[i] == 7'b0100000) ? SUB_OP : ADD_OP; //other case 7'b0000000
-                    		    SLL_FUNC3: //sll
-                    		        instr_info_id[i].ctrl_sig.alu_ctrl = SHIFT_L_LOGICAL_OP;
-                    		    SLT_FUNC3: //slt
-                    		        instr_info_id[i].ctrl_sig.alu_ctrl = LESS_THAN_OP;
-                    		    SLTU_FUNC3: //sltu
-                    		        instr_info_id[i].ctrl_sig.alu_ctrl = LESS_THAN_OP;
-                    		    XOR_FUNC3: //xor
-                    		        instr_info_id[i].ctrl_sig.alu_ctrl = XOR_OP;
-                    		    SR_FUNC3: //sra
-                    		        instr_info_id[i].ctrl_sig.alu_ctrl = (func7_id[i] == 7'b0100000) ? SHIFT_R_ARITH_OP : SHIFT_R_LOGICAL_OP;
-                    		    OR_FUNC3: //or
-                    		        instr_info_id[i].ctrl_sig.alu_ctrl = OR_OP;
-                    		    AND_FUNC3: //and
-                    		        instr_info_id[i].ctrl_sig.alu_ctrl = AND_OP;
-                    		    default:
-                    		        instr_info_id[i].ctrl_sig.alu_ctrl = 'X;
-                    		endcase
+                            if (func7_id[i] == M_FUNC7) begin
+                                instr_info_id[i].ctrl_sig.alu_src   = 0;
+                    		    instr_info_id[i].ctrl_sig.fu_dest   = INT_MUL_LANE_MASK;
+                                 instr_info_id[i].ctrl_sig.alu_ctrl = 0;
+							    instr_info_id[i].ctrl_sig.memRead   = 0;
+							    instr_info_id[i].ctrl_sig.memWrite  = 0;
+							    instr_info_id[i].ctrl_sig.rfWrite   = 1;                               
+                            end else begin
+							    instr_info_id[i].ctrl_sig.alu_src  = 0;
+                    		    instr_info_id[i].ctrl_sig.fu_dest  = INT_ALU_LANE_MASK;
+							    instr_info_id[i].ctrl_sig.memRead  = 0;
+							    instr_info_id[i].ctrl_sig.memWrite = 0;
+							    instr_info_id[i].ctrl_sig.rfWrite  = 1;
+                    		    case(func3_id[i])
+                    		        3'b000:   //add & SUB//***NOTE DID NOT CREATE CONSTANT -- CONSTANT SHOULD BE ZERO***
+                    		            instr_info_id[i].ctrl_sig.alu_ctrl = (func7_id[i] == 7'b0100000) ? SUB_OP : ADD_OP; //other case 7'b0000000
+                    		        SLL_FUNC3: //sll
+                    		            instr_info_id[i].ctrl_sig.alu_ctrl = SHIFT_L_LOGICAL_OP;
+                    		        SLT_FUNC3: //slt
+                    		            instr_info_id[i].ctrl_sig.alu_ctrl = LESS_THAN_OP;
+                    		        SLTU_FUNC3: //sltu
+                    		            instr_info_id[i].ctrl_sig.alu_ctrl = LESS_THAN_OP;
+                    		        XOR_FUNC3: //xor
+                    		            instr_info_id[i].ctrl_sig.alu_ctrl = XOR_OP;
+                    		        SR_FUNC3: //sra
+                    		            instr_info_id[i].ctrl_sig.alu_ctrl = (func7_id[i] == 7'b0100000) ? SHIFT_R_ARITH_OP : SHIFT_R_LOGICAL_OP;
+                    		        OR_FUNC3: //or
+                    		            instr_info_id[i].ctrl_sig.alu_ctrl = OR_OP;
+                    		        AND_FUNC3: //and
+                    		            instr_info_id[i].ctrl_sig.alu_ctrl = AND_OP;
+                    		        default:
+                    		            instr_info_id[i].ctrl_sig.alu_ctrl = 'X;
+                    		    endcase
+                            end
                 end
 
                 default: begin
@@ -316,7 +324,9 @@ module f_rat(
 
     // write conflict detector
     always_comb begin
-        ret_w_val_id = val_ret & ~branch_ret; //checking which retiring instr. are updating rat/regfile
+        for (int r = 0; r < RETIRE_WIDTH_MAX; r++) begin
+           ret_w_val_id[r] = info_ret[r].v & info_ret[r].rfWrite; //checking which retiring instr. are updating rat/regfile
+        end
 
         rat_ret_rd_conflict_mtx_id = '{default:0};
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
@@ -327,7 +337,7 @@ module f_rat(
             
             for (int j = ISSUE_WIDTH_MAX; j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin
                 for (int k = 0; k < RETIRE_WIDTH_MAX; k++) begin
-                     rat_ret_rd_conflict_mtx_id[i][j] |= ret_w_val_id[k] & (rd_id[i] == rd_ret[k]);
+                     rat_ret_rd_conflict_mtx_id[i][j] |= ret_w_val_id[k] & (rd_id[i] == info_ret[k].rd);
                 end
             end
         end  
@@ -336,7 +346,7 @@ module f_rat(
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; i++) begin  //write port in question
             for (int j = ISSUE_WIDTH_MAX; j < RETIRE_WIDTH_MAX+ISSUE_WIDTH_MAX; j++) begin //comparison to other write ports
                 if (j != i)
-                    rat_ret_rd_conflict_mtx_id[i][j] = ret_w_val_id[i-ISSUE_WIDTH_MAX] & (rd_ret[i-ISSUE_WIDTH_MAX] == rd_ret[j-ISSUE_WIDTH_MAX]);
+                    rat_ret_rd_conflict_mtx_id[i][j] = ret_w_val_id[i-ISSUE_WIDTH_MAX] & (info_ret[i-ISSUE_WIDTH_MAX].rd == info_ret[j-ISSUE_WIDTH_MAX].rd);
             end
         end
         
@@ -350,7 +360,7 @@ module f_rat(
         //check if retirement data match in RAT
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
             if (~rat_w_qual_id[i]) begin
-                rat_w_qual_id[i] |= (rat[rd_ret[i]].table_data == robid_ret[i]) & ~rat[rd_ret[i]].rf; // should adjust to read ports
+                rat_w_qual_id[i] |= (rat[info_ret[i].rd].table_data == info_ret[i].robid) & ~rat[info_ret[i].rd].rf; // should adjust to read ports
             end
         end
     end
@@ -366,17 +376,17 @@ module f_rat(
     end
     
     always_comb begin
-        //rat_port_data_id[0] = instr_val_id[0] ? rob_is_ptr[0] : rd_ret[0];
-        //rat_port_data_id[1] = instr_val_id[1] ? (instr_val_id[0] ? rob_is_ptr[1] : rob_is_ptr[0]) : rd_ret[1];
+        //rat_port_data_id[0] = instr_val_id[0] ? rob_is_ptr[0] : info_ret[0].rd;
+        //rat_port_data_id[1] = instr_val_id[1] ? (instr_val_id[0] ? rob_is_ptr[1] : rob_is_ptr[0]) : info_ret[1].rd;
         
         for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
-            rat_port_addr_id[i] = instr_val_id[i] & ~(storeInstruc_id[i] | branchInstruc_id[i]) ? rd_id[i] : rd_ret[i];
-            rat_port_data_id[i] = instr_val_id[i] & ~(storeInstruc_id[i] | branchInstruc_id[i]) ? rob_is_ptr[i] : rd_ret[i];
+            rat_port_addr_id[i] = instr_val_id[i] & ~(storeInstruc_id[i] | branchInstruc_id[i]) ? rd_id[i]      : info_ret[i].rd;
+            rat_port_data_id[i] = instr_val_id[i] & ~(storeInstruc_id[i] | branchInstruc_id[i]) ? rob_is_ptr[i] : info_ret[i].rd;
         end
 
         for (int i = ISSUE_WIDTH_MAX; i < RETIRE_WIDTH_MAX; i++) begin
-            rat_port_data_id[i] = rd_ret[i]; //MAY BE LESS CDYN BY JUST RESETTING rat.rf
-            rat_port_addr_id[i] = rd_ret[i];
+            rat_port_data_id[i] = info_ret[i].rd; //MAY BE LESS CDYN BY JUST RESETTING rat.rf
+            rat_port_addr_id[i] = info_ret[i].rd;
         end
     end
 
@@ -385,7 +395,7 @@ module f_rat(
         for (int i = 0; i < RETIRE_WIDTH_MAX; i++) begin
             if (rat_write_id[i] & (rat_port_addr_id[i] != 0)) begin
                 rat[rat_port_addr_id[i]].table_data <= rat_port_data_id[i];
-                rat[rat_port_addr_id[i]].rf         <= val_ret[i] ? 1 : 0; //change to constants  //FIX ME * WRONG PRIORITY*
+                rat[rat_port_addr_id[i]].rf         <= info_ret[i].v ? 1 : 0; //change to constants  //FIX ME * WRONG PRIORITY*
             end
         end
     end
@@ -397,7 +407,7 @@ module f_rat(
     //////////////////////////////////////////
     
     logic [RETIRE_WIDTH_MAX-1:0][ROB_SIZE_CLOG-1:0] robid_ret_ar;
-    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN-1:0] rd_ret_ar;
+    logic [RETIRE_WIDTH_MAX-1:0][SRC_LEN-1:0] rd_ret_from_id_ar;
     logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][SRC_LEN-1:0] src_original_ar;
     
     always_ff@(posedge clk) begin
@@ -406,21 +416,24 @@ module f_rat(
             ret_val_ar   	<= '0;
             robid_ret_ar 	<= '{default:0};
             instr_val_ar 	<= '0;
-            rd_ret_ar    	<= '0;
+            rd_ret_from_id_ar    	<= '0;
             src_original_ar <= '0;
             opcode_ar    	<= '0;
             rd_ar        	<= '0;
         end else begin
             instr_info_ar <= instr_info_id;
             ret_val_ar    <= ret_w_val_id;
-            robid_ret_ar  <= robid_ret;
             instr_val_ar  <= instr_val_id;
-            rd_ret_ar     <= rd_ret;
             opcode_ar     <= opcode_id;
             rd_ar         <= rd_id;
+            
             for (int i = 0; i < ISSUE_WIDTH_MAX; i++) begin
                 src_original_ar[i][RS_1] <= rs1_id[i];
                 src_original_ar[i][RS_2] <= rs2_id[i];
+            end
+            for (int r = 0; r < RETIRE_WIDTH_MAX; r++) begin
+                rd_ret_from_id_ar[r]     <= info_ret[r].rd;
+                robid_ret_ar[r]  <= info_ret[r].robid;
             end
         end
     end
@@ -432,6 +445,8 @@ module f_rat(
     logic [RETIRE_WIDTH_MAX_CLOG-1:0] inbuff_ret_ovrd_dep_ar_onehot, outbuff_ret_ovrd_dep_ar_onehot;
     logic [RETIRE_WIDTH_MAX_CLOG-1:0] inbuff_ret_ovrd_dep_id_onehot, outbuff_ret_ovrd_dep_id_onehot;
 
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RETIRE_WIDTH_MAX-1:0]      ret_ovrd_dep_mtx_from_id_ar;
+    logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RETIRE_WIDTH_MAX_CLOG-1:0] ret_ovrd_dep_mtx_onehot_from_id_ar;
     
     //retirement override dependency matrix
     always_comb begin
@@ -441,10 +456,10 @@ module f_rat(
             for (int s = 0; s < NUM_SRCS; s++) begin
                 for (int r = 0; r < RETIRE_WIDTH_MAX; r++) begin
                     //check instructions that retired in last cycle that could not check before
-                    ret_ovrd_dep_mtx_ar[i][s][r] = (src_renamed_ar[i][s] == robid_ret_ar[r]) & (instr_val_ar[i] & ret_val_ar[r]) & ~src_data_type_ar[i][s];
+                    ret_ovrd_dep_mtx_ar[i][s][r] = (src_renamed_ar[i][s] == robid_ret_ar[r])       & (instr_val_ar[i] & ret_val_ar[r])   & ~src_data_type_ar[i][s];
                     
                     //also need to check instructions currently retiring
-                    ret_ovrd_dep_mtx_id[i][s][r] = (src_renamed_ar[i][s] ==    robid_ret[r]) & (instr_val_ar[i] &    val_ret[r]) & ~src_data_type_ar[i][s]; 
+                    ret_ovrd_dep_mtx_id[i][s][r] = (src_renamed_ar[i][s] ==     info_ret[r].robid) & (instr_val_ar[i] &   info_ret[r].v) & ~src_data_type_ar[i][s]; 
                 end
             end
         end
@@ -453,14 +468,16 @@ module f_rat(
     logic [ISSUE_WIDTH_MAX-1:1][NUM_SRCS-1:0][ISSUE_WIDTH_MAX-2:0] src_dep_ovrd_mtx_ar; //ISSUE SRC dependedent on which previous ISSUE checker
     logic [ISSUE_WIDTH_MAX-1:1][NUM_SRCS-1:0][ISSUE_WIDTH_MAX-2:0] src_dep_ovrd_mtx_qual_1st_ar;
     logic [ISSUE_WIDTH_MAX-1:1][NUM_SRCS-1:0][ISSUE_WIDTH_MAX_CLOG-1:0] src_dep_ovrd_mtx_one_hot_ar;
-    logic [ISSUE_WIDTH_MAX-2:0] inbuff_src_dep_mtx, outbuff_src_dep_mtx;  //weird thing with macros where I have to buffer signal
-    logic [ISSUE_WIDTH_MAX_CLOG-1:0] inbuff_src_dep_onehot, outbuff_src_dep_onehot;
+    logic [ISSUE_WIDTH_MAX-2:0] inbuff_src_dep_mtx;
+    logic [ISSUE_WIDTH_MAX-2:0] outbuff_src_dep_mtx;  //weird thing with macros where I have to buffer signal 
+    logic [ISSUE_WIDTH_MAX-2:0] inbuff_src_dep_onehot;
+    logic [ISSUE_WIDTH_MAX_CLOG-1:0] outbuff_src_dep_onehot;
     
     always_comb begin
         for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin //instr 0 will not have any dependencies
             src_dep_ovrd_mtx_ar[i] = '{default:0};
             for (int s = 0; s < NUM_SRCS; s++) begin
-                for (int j = 0; j < (ISSUE_WIDTH_MAX-1); j++) begin //cannot compare last instr to itself                
+                for (int j = i-1; j >= 0; j--) begin //cannot compare last instr to itself                
                     src_dep_ovrd_mtx_ar[i][s][j] = (src_original_ar[i][s] == rd_ar[j]) & (instr_val_ar[i] & instr_val_ar[j]);
                 end
             end
@@ -471,13 +488,20 @@ module f_rat(
     always_comb begin
         for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin //instr 0 will not have any dependencies
             src_dep_ovrd_mtx_qual_1st_ar[i] = '{default:0};
-            src_dep_ovrd_mtx_one_hot_ar[i]  = '{default:0};
+
             for (int s = 0; s < NUM_SRCS; s++) begin
                 inbuff_src_dep_mtx = src_dep_ovrd_mtx_ar[i][s];
                 `ONE_1ST_MSB(outbuff_src_dep_mtx, inbuff_src_dep_mtx);
                 src_dep_ovrd_mtx_qual_1st_ar[i][s] = outbuff_src_dep_mtx;
-                
-                inbuff_src_dep_onehot = src_dep_ovrd_mtx_qual_1st_ar[i][s];
+            end
+        end
+    end
+    
+    always_comb begin
+        for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin //instr 0 will not have any dependencies
+            src_dep_ovrd_mtx_one_hot_ar[i]  = '{default:0};
+            for (int s = 0; s < NUM_SRCS; s++) begin
+                 inbuff_src_dep_onehot = src_dep_ovrd_mtx_qual_1st_ar[i][s];
                 `ONE_HOT_ENCODE(outbuff_src_dep_onehot, inbuff_src_dep_onehot);
                 src_dep_ovrd_mtx_one_hot_ar[i][s] = outbuff_src_dep_onehot;
             end
@@ -498,6 +522,11 @@ module f_rat(
             end  
         end
     end
+    
+    always_ff@(posedge clk) begin
+        ret_ovrd_dep_mtx_onehot_from_id_ar <= ret_ovrd_dep_mtx_onehot_id;
+        ret_ovrd_dep_mtx_from_id_ar        <= ret_ovrd_dep_mtx_id;
+    end
 
     //generate final src renamed with false dependencies removed
     always_comb begin
@@ -505,24 +534,25 @@ module f_rat(
         src_data_type_rdy_2_issue_ar = '{default:0};
         for (int i = 1; i < ISSUE_WIDTH_MAX; i++) begin
             for (int s = 0; s < NUM_SRCS; s++) begin
-                src_rdy_2_issue_ar[i][s] =           |src_dep_ovrd_mtx_qual_1st_ar[i][s] ? instr_info_ar[src_dep_ovrd_mtx_one_hot_ar[i][s]].robid :
-                                                     |ret_ovrd_dep_mtx_id[i][s]          ? rd_ret[        ret_ovrd_dep_mtx_onehot_id[i][s]] :
-                                                     |ret_ovrd_dep_mtx_ar[i][s]          ? rd_ret_ar[     ret_ovrd_dep_mtx_onehot_ar[i][s]] :
+                src_rdy_2_issue_ar[i][s] =           |src_dep_ovrd_mtx_qual_1st_ar[i][s] ? instr_info_ar[  src_dep_ovrd_mtx_one_hot_ar[i][s]].robid :
+                                                     |ret_ovrd_dep_mtx_from_id_ar[i][s]  ? info_ret[ret_ovrd_dep_mtx_onehot_from_id_ar[i][s]].rd    :
+                                                     |ret_ovrd_dep_mtx_ar[i][s]          ? rd_ret_from_id_ar[ret_ovrd_dep_mtx_onehot_ar[i][s]]      :
                                                            src_renamed_ar[i][s];
                                                 
                 src_data_type_rdy_2_issue_ar[i][s] = |src_dep_ovrd_mtx_qual_1st_ar[i][s] ? ROB_DATA_TYPE :
-                                                    (|ret_ovrd_dep_mtx_id[i][s] | 
+                                                    (|ret_ovrd_dep_mtx_from_id_ar[i][s]  | 
                                                      |ret_ovrd_dep_mtx_ar[i][s])         ? RF_DATA_TYPE : 
-                                                         src_data_type_ar[i][s];                
+                                                         src_data_type_ar[i][s];
             end
         end
+        
         for (int s = 0; s < NUM_SRCS; s++) begin 
-            src_rdy_2_issue_ar[0][s] =            |ret_ovrd_dep_mtx_id[0][s]   ? rd_ret[   ret_ovrd_dep_mtx_onehot_id[0][s]] :
-                                                  |ret_ovrd_dep_mtx_ar[0][s]   ? rd_ret_ar[ret_ovrd_dep_mtx_onehot_ar[0][s]] :
+            src_rdy_2_issue_ar[0][s] =            |ret_ovrd_dep_mtx_from_id_ar[0][s] ? info_ret[ ret_ovrd_dep_mtx_onehot_from_id_ar[0][s]].rd :
+                                                  |ret_ovrd_dep_mtx_ar[0][s]         ? rd_ret_from_id_ar[ret_ovrd_dep_mtx_onehot_ar[0][s]]    :
                                                         src_renamed_ar[0][s];
-            src_data_type_rdy_2_issue_ar[0][s] = (|ret_ovrd_dep_mtx_id[0][s]  |
+            src_data_type_rdy_2_issue_ar[0][s] = (|ret_ovrd_dep_mtx_from_id_ar[0][s]  |
                                                   |ret_ovrd_dep_mtx_ar[0][s]) ? RF_DATA_TYPE : 
-                                                      src_data_type_ar[0][s];                                    
+                                                      src_data_type_ar[0][s];
         end
     end
 
