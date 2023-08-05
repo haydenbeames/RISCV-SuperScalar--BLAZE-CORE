@@ -29,14 +29,16 @@
 		logic [ROB_SIZE_CLOG-1:0] robid;
 		logic [NUM_SRCS-1:0][DATA_LEN-1:0] src;
 		logic [ALU_CTRL_WIDTH-1:0] alu_ctrl;
+		logic v; //valid
 
-    } alu_lane_t;
+    } int_alu_lane_t;
     
     //int mul laneinfo packet
 	typedef struct packed { 
 		logic [ROB_SIZE_CLOG-1:0] robid;
 		logic [NUM_SRCS-1:0][DATA_LEN-1:0] src;
 		logic [FUNC3_SIZE-1:0] func3;
+		logic v; //valid
 
     } int_mul_lane_t;
 
@@ -45,6 +47,7 @@
 		logic [OPCODE_LEN-1:0] op; 	//instruction opcode
 		logic [ROB_SIZE_CLOG:0] robid;
 		logic [NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] Q; //data location as specified from RAT //if zero, data already allocated
+		logic [NUM_SRCS-1:0] Q_src_dep;  
 		logic [NUM_SRCS-1:0][31:0] V; 	//value of src operands needed
         logic [SRC_LEN-1:0] rd;
         logic [DATA_LEN-1:0] imm;
@@ -69,13 +72,37 @@
 	typedef struct packed {
 	   logic [CPU_NUM_LANES-1:0] alu;
 	   logic [CPU_NUM_LANES-1:0] beu;
+	   logic [CPU_NUM_LANES-1:0] mul;
 	   
 	} fu_dest_t;
 	
 	typedef struct packed {
 	   logic [CPU_NUM_LANES_CLOG:0] alu;
 	   logic [CPU_NUM_LANES_CLOG:0] beu;
+	   logic [CPU_NUM_LANES_CLOG:0] mul;
 	   
 	} lane_cnt_t;
 	
+	typedef struct packed {
+	   logic [CPU_NUM_LANES-1:0] alu;
+	   logic [CPU_NUM_LANES-1:0] beu;
+	   logic [CPU_NUM_LANES-1:0] mul; 
+	   
+	} buff_1_1st_fu_dest_ar_t;
+	
+	typedef struct packed {
+	   logic [ROB_SIZE_CLOG-1:0] robid;
+	   logic [DATA_LEN-1:0]  data;
+	   logic v;
+	} cdb_t;
+	
+	typedef struct packed {
+        logic [DATA_LEN-1:0]       data;
+        logic [SRC_LEN-1:0]          rd;
+        logic [DATA_LEN-1:0]         pc;
+        logic                         v; //valid
+        logic                   rfWrite;
+        logic                  memWrite;
+        logic [ROB_SIZE_CLOG-1:0] robid;
+	} info_ret_t;
 `endif //STRUCTS
