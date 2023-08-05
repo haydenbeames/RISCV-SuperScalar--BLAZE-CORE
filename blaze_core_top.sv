@@ -121,22 +121,7 @@ module blaze_core_top(
     // Integer Multipliers 
 
     genvar g_i, g_ln;
-    
-    generate
-        for (g_i = 0; g_i < NUM_INT_MUL_LN; g_i++) begin
-            int_mul int_mul_t(.clk           (clk                                ),
-                              .mul_val_ex1   (int_mul_ln_info_ex1[g_i].v         ),
-                              .op1_ex1       (int_mul_ln_info_ex1[g_i].src[RS_1] ),
-                              .op2_ex1       (int_mul_ln_info_ex1[g_i].src[RS_2] ),
-                              .func3_ex1     (int_mul_ln_info_ex1[g_i].func3     ),
-                              .robid_ex1     (int_mul_ln_info_ex1[g_i].robid     ),
-                              .mul_val_ex2   (cdb_in[g_i+INT_MUL_LN_OFFSET].v    ),
-                              .robid_ex2     (cdb_in[g_i+INT_MUL_LN_OFFSET].robid),
-                              .mul_result_ex2(cdb_in[g_i+INT_MUL_LN_OFFSET].data )
-                              );                   
-        end
-    endgenerate  
-    
+  
     //////////////////////////////////////////
     // Integer ALUs  
     
@@ -152,15 +137,38 @@ module blaze_core_top(
                              .result_alu_ex1     (cdb_in[g_ln].data                  )
                              );
         end      
-    endgenerate
+    endgenerate  
+    
+    generate
+        for (g_i = INT_MUL_LN_OFFSET; g_i < NUM_INT_MUL_LN+INT_MUL_LN_OFFSET; g_i++) begin
+            int_mul int_mul_t(.clk           (clk                                ),
+                              .mul_val_ex1   (int_mul_ln_info_ex1[g_i].v         ),
+                              .op1_ex1       (int_mul_ln_info_ex1[g_i].src[RS_1] ),
+                              .op2_ex1       (int_mul_ln_info_ex1[g_i].src[RS_2] ),
+                              .func3_ex1     (int_mul_ln_info_ex1[g_i].func3     ),
+                              .robid_ex1     (int_mul_ln_info_ex1[g_i].robid     ),
+                              .mul_val_ex2   (cdb_in[g_i].v                      ),
+                              .robid_ex2     (cdb_in[g_i].robid                  ),
+                              .mul_result_ex2(cdb_in[g_i].data                   )
+                              );                   
+        end
+    endgenerate  
+    
+
     
     ///////////////////////////////////
     // Common Data Bus (CDB)
     
-    
     generate
         for (g_ln = 0; g_ln < CPU_NUM_LANES; g_ln++) begin
-            cdb cdb_t(.*);
+            cdb cdb_t(.clk       (clk                ),
+                      .v         (cdb_in[g_ln].v     ),
+                      .robid     (cdb_in[g_ln].robid ),
+                      .data      (cdb_in[g_ln].data  ),
+                      .v_cmt     (cdb_cmt[g_ln].v    ),
+                      .robid_cmt (cdb_cmt[g_ln].robid),
+                      .data_cmt  (cdb_cmt[g_ln].data )                    
+                     );
         end
     endgenerate
     
