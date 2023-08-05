@@ -122,3 +122,13 @@ A checkpointing system will eventually be implemented to complement the 2 RAT sy
 - Also can retire any # of instructions (obviously there is a trade off between more complex hardware/timing and more instructions retired)
 - User would want to retire at least 1 more instruction than ISSUE_WDITH_MAX (*I personally recommend at least 2 more* -> UPDATE RETIRE_WIDTH_MAX to do this)
 
+
+
+# Execution Units
+
+## Radix-4 SRT Division
+-18 cycle output
+
+## Radix-4 Multiplier
+- 2 cycle output
+- uses 4:2 compressors for fast adder tree addition
