@@ -42,9 +42,9 @@ Current items under progress: (priority 1 > 2 > 3 > 4)
 -  Usually I will update github every 2 weeks to 1 month
 ## Pipe stages
 
-IF*| ID | AR | RS | EX* | CMT | RET* 
+IF*| ID | AR | RS | FWD | EX* | CMT | RET* 
 
-Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation Station | Execution* | Commit | Retire*
+Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation Station | Forward | Execution* | Commit | Retire*
 
 *: stage may take multiple cycles
 
@@ -83,6 +83,13 @@ Instruction Fetch* | Instruction Decode/Rename | Allocate/Rename | Reservation S
 - Centralized Reservation Station to reduce stalls
 - have not yet parameterized completely # entries to issue into RS
   - can currently do 1-4 instructions per cycle (although very quick fix to expand this)
+## FWD (Forward) SAGE:
+    1 Cycle Lane:      AR | RS | FWD | EX1 | CMT
+    Long Latency Lane: AR | RS | FWD | EX1 | EX2 | CMT
+    
+    FWD MUX: select data out of EX1, EX2, or CMT 
+    
+    Scheduling determined in RS to time FWD select muxes
 
 # MISSPECULATING BRANCHES
 
