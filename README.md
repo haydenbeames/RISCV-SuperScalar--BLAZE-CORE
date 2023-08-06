@@ -1,4 +1,4 @@
-# RISC-V SuperScalar
+# RISC-V SuperScalar (BLAZE CORE)
 
 ### parameterize CPU according to needs (power, performance, area, # execution units etc.) simply by tweaking rtl_constants.sv !!
 ### capable of handling all dependencies between any # of issue widths!
