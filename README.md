@@ -11,11 +11,11 @@
 
 Current items under progress: (priority 1 > 2 > 3 > 4)
 - 1: L/S units
-- 1: common data bus
-- 2: area and latency efficient adder tree for integer multiplication
+- 1: common data bus - DONE
+- 2: area and latency efficient adder tree for integer multiplication - DONE
 - 2: Tournament Branch Predictor, (created perceptron predictor -> not efficient enough, 3 way tournament hybrid??)
-- 3: Division unit
-- 3: RRAT for branch mispredictions
+- 3: Division unit - DONE
+- 3: RRAT for branch mispredictions - DONE
 - 4: Fetch Instruction Queue (might not implement in V1)
 - 4: Implementation hardware -> clock trees, MMCM, Memory Setup, AXI, etc.
  
