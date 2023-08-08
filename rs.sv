@@ -10,20 +10,6 @@
 *
 * Description: 
 *   Centralized Reservation chosen to reduce pipeline stalls.
-*       * Data for instructions is held in the RS to reduce # of read 
-*         ports to regfile 
-*               - this also results in lower latency on dispatch since  
-*                 retrieving rf data from dispatching instructions is not 
-*                 necessary
-*               - NOTE: this is less power efficient since will need
-*                       not only more area for the RS but more data will need  
-*                       to be written into RS  
-*                                -> # RS memory cells extra vs dispatch method = DATA_LEN * RS_NUM_ENTRIES 
-*                                    -prefer not to generate immediate data on dispatch since will need 
-*                                     to decode again which requires more instruction information so will 
-*                                     rs2 in reservation station
-*                       -retrieving from regfile on dispatch will  
-*                        not be explored further
 *
 ****************************************************************************/
 
