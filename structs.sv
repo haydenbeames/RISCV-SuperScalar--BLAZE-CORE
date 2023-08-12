@@ -48,7 +48,7 @@
 		logic [ROB_SIZE_CLOG:0] robid;
 		logic [NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] Q; //data location as specified from RAT //if zero, data already allocated
 		logic [NUM_SRCS-1:0] Q_src_dep;  
-		logic [NUM_SRCS-1:0][31:0] V; 	//value of src operands needed
+//		logic [NUM_SRCS-1:0][31:0] V; 	//value of src operands needed
         logic [SRC_LEN-1:0] rd;
         logic [DATA_LEN-1:0] imm;
 		logic valid; 	//info in rs is valid
@@ -110,16 +110,17 @@
 	
 	// info which is not needed by an execution unit will be synthesized away
 	typedef struct packed {
-	   logic [ROB_SIZE_CLOG-1:0] robid;
+	   logic [ROB_SIZE_CLOG-1:0]                       robid;
 	   logic [NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src;
-	   logic [SUM_SRCS-1:0]   src_prf; //1: grab prf, 0: inflight instruction
-	   logic [NUM_SRCS-1:0]   src_valid;
-	   logic [DATA_LEN-1:0]   imm;
-	   logic [FUNC3_SIZE-1:0] func3;
-	   logic [ALU_CTRL_WIDTH-1:0] alu_ctrl
+	   logic [SUM_SRCS-1:0]                            src_prf; //1: grab prf, 0: inflight instruction
+	   logic [NUM_SRCS-1:0]                            src_valid;
+	   logic [DATA_LEN-1:0]                            imm;
+	   logic [FUNC3_SIZE-1:0]                          func3;
+	   logic [ALU_CTRL_WIDTH-1:0]                      alu_ctrl;
 	   logic imm_valid;
 	   logic prfWrite;
 	   logic v;
 	}
 	info_instr_2_disp_rs;
+	
 `endif //STRUCTS
