@@ -94,6 +94,8 @@
 	   logic [ROB_SIZE_CLOG-1:0] robid;
 	   logic [DATA_LEN-1:0]  data;
 	   logic v;
+	   logic prfWrite;
+	   
 	} cdb_t;
 	
 	typedef struct packed {
@@ -105,4 +107,19 @@
         logic                  memWrite;
         logic [ROB_SIZE_CLOG-1:0] robid;
 	} info_ret_t;
+	
+	// info which is not needed by an execution unit will be synthesized away
+	typedef struct packed {
+	   logic [ROB_SIZE_CLOG-1:0] robid;
+	   logic [NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src;
+	   logic [SUM_SRCS-1:0]   src_prf; //1: grab prf, 0: inflight instruction
+	   logic [NUM_SRCS-1:0]   src_valid;
+	   logic [DATA_LEN-1:0]   imm;
+	   logic [FUNC3_SIZE-1:0] func3;
+	   logic [ALU_CTRL_WIDTH-1:0] alu_ctrl
+	   logic imm_valid;
+	   logic prfWrite;
+	   logic v;
+	}
+	info_instr_2_disp_rs;
 `endif //STRUCTS
