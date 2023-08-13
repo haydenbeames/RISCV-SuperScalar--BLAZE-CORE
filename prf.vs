@@ -99,7 +99,7 @@ module prf(
     always_comb begin  
         for (int ln = 0; ln < CPU_NUM_LANES; ln++) begin
             for (int s = 0; s < NUM_SRCS; s++)
-                prf_r_port_addr[i*NUM_SRCS+s] = info_instr_2_disp_rs[ln].src[s];
+                prf_r_port_addr[ln*NUM_SRCS+s] = info_instr_2_disp_rs[ln].src[s];
         end        
     end
     
