@@ -21,6 +21,7 @@ Current items under progress: (priority 1 > 2 > 3 > 4)
  
 2nd Version:
 - Add Support for Matrix Multiply Accumulate (MAC) for AI acceleration
+- - Will be concurrently researching TPU architecture since I may eventually want this CPU be a master for TPU (tensor processing unit) submodules
 - Adding FRAT checkpoints
 - faster and more area efficient macro logic
 - improved division algorithm
