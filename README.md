@@ -4,7 +4,7 @@
 ### capable of handling all dependencies between any # of issue widths!
 
 
-**WIP: 1st Version Anticipated Completion/Functionality by 9/1/2023 *
+**WIP: 1st Version Anticipated Completion/Functionality by 12/31/2023 *
 
 ![alt text](https://github.com/haydenbeames/RISCV-SuperScalar--BLAZE-CORE/blob/main/architecture_diagrams/Architecture-high-level_v1.png)
 
