@@ -135,6 +135,7 @@ A checkpointing system will eventually be implemented to complement the 2 RAT sy
 ## Radix-4 Multiplier
 - 2 cycle output
 - uses 4:2 compressors for fast adder tree addition
+- low level instantiation for fast addition
 
 # BEU (Branch Execution Unit)
 
