@@ -4,7 +4,7 @@
 ### capable of handling all dependencies between any # of issue widths!
 
 
-**WIP: 1st Version Anticipated Completion/Functionality by 12/31/2023 *
+**WIP: 1st Version Anticipated Completion/Functionality by 2/31/2024 *
 
 ![alt text](https://github.com/haydenbeames/RISCV-SuperScalar--BLAZE-CORE/blob/main/architecture_diagrams/Architecture-high-level_v1.png)
 
@@ -12,6 +12,7 @@
 Current items under progress: (priority 1 > 2 > 3 > 4)
 - 1: L/S units
 - 1: common data bus - DONE
+- 1: Fowarding Hardware
 - 2: area and latency efficient adder tree for integer multiplication - DONE
 - 2: Tournament Branch Predictor, (created perceptron predictor -> not efficient enough, 3 way tournament hybrid??)
 - 3: Division unit - DONE
