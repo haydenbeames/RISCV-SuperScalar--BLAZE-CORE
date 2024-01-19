@@ -3,6 +3,8 @@
 ### parameterize CPU according to needs (power, performance, area, # execution units etc.) simply by tweaking rtl_constants.sv !!
 ### capable of handling all dependencies between any # of issue widths!
 
+### Eventually will design gui to make easy adjustments and give estimates on how performance/power/timing/area will be impacted based on past synthesis runs
+
 
 **WIP: 1st Version Anticipated Completion/Functionality by 2/31/2024 *
 
