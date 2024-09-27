@@ -6,8 +6,6 @@
 ### Eventually will design gui to make easy adjustments and give estimates on how performance/power/timing/area will be impacted based on past synthesis runs
 
 
-**WIP: 1st Version Anticipated Completion/Functionality by 2/31/2024 *
-
 ![alt text](https://github.com/haydenbeames/RISCV-SuperScalar--BLAZE-CORE/blob/main/architecture_diagrams/Architecture-high-level_v1.png)
 
 
