@@ -65,4 +65,27 @@
         OUT = out; \
     end
     
+`define FF(OUT, IN, CLK)          \
+  begin                           \
+    always_ff@(posedge CLK) begin \
+      OUT <= IN;                  \
+    end                           \
+  end                             
+
+`define FF_RESET(OUT, IN, CLK, RESET)            \
+  begin                                          \
+    always_ff@(posedge CLK, posedge RESET) begin \
+      OUT <= RESET ? '0 : IN;                    \
+    end                                          \
+  end                                            
+    
+`define LCB(clk_out, enable, clk_in) \
+  BUFGCE BUFGCE_t(                   \
+    .O (clk_out),                    \
+    .CE(enable),                     \
+    .I (clk_in)                      \
+  );
+  
+  
+  
 `endif // MACROS

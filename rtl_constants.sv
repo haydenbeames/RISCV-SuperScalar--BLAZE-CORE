@@ -12,8 +12,8 @@ parameter SRC_LEN = 5;
 parameter OPCODE_LEN = 7;
 parameter BEU_LANE_MASK = 4'b0000;
 parameter MEU_LANE_MASK = 4'b0000;
-parameter INT_ALU_LANE_MASK = 4'b0011;
-parameter INT_MUL_LANE_MASK = 4'b0100;
+parameter INT_ALU_LANE = {0,0,1,1};
+parameter INT_MUL_LANE = {0,1,0,0};
 parameter NUM_INT_ALU_LN = 2;
 parameter NUM_INT_MUL_LN = 1;
 parameter INT_ALU_LN_OFFSET = 0;
@@ -47,8 +47,9 @@ parameter RETIRE_WIDTH_MAX = ROB_MAX_RETIRE;
 parameter RETIRE_WIDTH_MAX_CLOG = $clog2(RETIRE_WIDTH_MAX);
 parameter ROB_MAX_RETIRE_CLOG = $clog2(ROB_MAX_RETIRE);
 
-//REGFILE CONSTANTS
-parameter RF_SIZE = 32;
+//PRF CONSTANTS
+parameter PRF_SIZE = 32;
+parameter PDST_WIDTH = $clog2(PRF_SIZE);
 parameter NUM_RF_R_PORTS = ISSUE_WIDTH_MAX*NUM_SRCS;
 parameter NUM_RF_W_PORTS = RETIRE_WIDTH_MAX;
 
