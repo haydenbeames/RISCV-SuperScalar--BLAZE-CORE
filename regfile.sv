@@ -19,7 +19,7 @@ module regfile(
     input wire logic clk,
     
     // AR inputs 
-    input wire logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src_rdy_2_issue_ar,
+    input wire logic [ISSUE_WIDTH_MAX-1:0][NUM_SRCS-1:0][PRF_SIZE_CLOG-1:0] src_rdy_2_issue_ar,
     
     //retire inputs
     input info_ret_t [ROB_MAX_RETIRE-1:0] info_ret,

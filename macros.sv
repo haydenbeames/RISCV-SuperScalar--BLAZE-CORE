@@ -78,9 +78,18 @@
       OUT <= RESET ? '0 : IN;                    \
     end                                          \
   end                                            
-    
+ 
+ //Regional Clock Buffer 
+`define RCB(clk_out, enable, clk_in) \
+  BUFGCE BUFGCE_RCB(                 \
+    .O (clk_out),                    \
+    .CE(enable),                     \
+    .I (clk_in)                      \
+  );
+  
+ //Local Clock Buffer
 `define LCB(clk_out, enable, clk_in) \
-  BUFGCE BUFGCE_t(                   \
+  BUFGCE BUFGCE_LCB(                 \
     .O (clk_out),                    \
     .CE(enable),                     \
     .I (clk_in)                      \

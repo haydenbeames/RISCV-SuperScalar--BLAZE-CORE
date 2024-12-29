@@ -21,6 +21,9 @@
 
 //include files
 `include "rtl_constants.sv"
+`include "decode_constants.sv"
+`include "riscv_alu_constants.sv"
+`include "macros.sv"
 `include "structs.sv"
 
 //fwd unit  

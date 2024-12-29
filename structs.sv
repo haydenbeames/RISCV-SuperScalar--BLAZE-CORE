@@ -5,8 +5,8 @@
 
     //ctrl signal struct
     typedef struct packed { 
-        logic memRead;
-        logic memWrite;
+    logic memRead;
+    logic memWrite;
         logic rfWrite;
         logic [ALU_CTRL_WIDTH-1:0] alu_ctrl;
 		logic alu_src;
@@ -23,17 +23,25 @@
 		ctrl_sig_t ctrl_sig;
 
     } instr_info_t;
-    
-    //alu laneinfo packet
+
+	typedef struct packed { 
+		logic [ROB_SIZE_CLOG-1:0]          robid;
+		logic [NUM_SRCS-1:0][DATA_LEN-1:0] src;
+		logic [ALU_CTRL_WIDTH-1:0]         alu_ctrl;
+		logic                              v;
+
+  } int_lane_info_t;
+  
+  //alu laneinfo packet
 	typedef struct packed { 
 		logic [ROB_SIZE_CLOG-1:0] robid;
 		logic [NUM_SRCS-1:0][DATA_LEN-1:0] src;
 		logic [ALU_CTRL_WIDTH-1:0] alu_ctrl;
 		logic v; //valid
 
-    } int_alu_lane_t;
+    } int_alu_lane_info_t;
     
-    //int mul laneinfo packet
+  //int mul laneinfo packet
 	typedef struct packed { 
 		logic [ROB_SIZE_CLOG-1:0] robid;
 		logic [NUM_SRCS-1:0][DATA_LEN-1:0] src;
@@ -43,18 +51,16 @@
     } int_mul_lane_t;
 
     //reservation station 
-    typedef struct packed {
-		logic [OPCODE_LEN-1:0] op; 	//instruction opcode
-		logic [ROB_SIZE_CLOG:0] robid;
-		logic [NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] Q; //data location as specified from RAT //if zero, data already allocated
-		logic [NUM_SRCS-1:0] Q_src_dep;  
-//		logic [NUM_SRCS-1:0][31:0] V; 	//value of src operands needed
-        logic [SRC_LEN-1:0] rd;
-        logic [DATA_LEN-1:0] imm;
-		logic valid; 	//info in rs is valid
+  typedef struct packed {
+		logic [OPCODE_LEN-1:0]                  opcode; 	//instruction opcode
+		logic [ROB_SIZE_CLOG:0]                 robid;
+	  logic [NUM_SRCS-1:0][PRF_SIZE_CLOG-1:0] src;
+	  logic [NUM_SRCS-1:0]                    src_valid;
+    logic [PRF_SIZE_CLOG-1:0]               pdst;
+    logic [DATA_LEN-1:0]                    imm;
 		
 		ctrl_sig_t ctrl_sig;
-
+		
 	} rs_t;
 	
 	//re-order buffer
@@ -111,8 +117,8 @@
 	// info which is not needed by an execution unit will be synthesized away
 	typedef struct packed {
 	   logic [ROB_SIZE_CLOG-1:0]                       robid;
-	   logic [NUM_SRCS-1:0][RAT_RENAME_DATA_WIDTH-1:0] src;
-	   logic [SUM_SRCS-1:0]                            src_prf; //1: grab prf, 0: inflight instruction
+	   logic [NUM_SRCS-1:0][PRF_SIZE_CLOG-1:0]         src;
+	   logic [NUM_SRCS-1:0]                            src_prf; //1: grab prf, 0: inflight instruction
 	   logic [NUM_SRCS-1:0]                            src_valid;
 	   logic [DATA_LEN-1:0]                            imm;
 	   logic [FUNC3_SIZE-1:0]                          func3;
